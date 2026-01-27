@@ -28,7 +28,7 @@ import { SessionActionsMenu } from './SessionActionsMenu';
 import { SettingsTab } from './SettingsTab';
 import { Toast, ToastType } from '../ui/Toast';
 import { TimerNotification } from './TimerNotification';
-import { getTodaysQuote } from '../../data/dailyQuotes';
+import { getTodaysTip } from '../../data/focusTips';
 import { AnalyticsPage } from './AnalyticsPage';
 import { SEO } from '../SEO';
 import { API_BASE_URL, FRONTEND_URL } from '../../config/api';
@@ -169,77 +169,178 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [token, isBlockingEnabled]);
 
-  // Load blocked sites from localStorage and sync with extension
+  // Load blocked sites from backend (if logged in) or localStorage, and sync with extension
   useEffect(() => {
-    try {
-      const savedBlockedSites = localStorage.getItem('blockedSites');
-      if (savedBlockedSites) {
-        setBlockedSites(JSON.parse(savedBlockedSites));
-      }
-      
-      const savedBlockingEnabled = localStorage.getItem('isBlockingEnabled');
-      if (savedBlockingEnabled !== null) {
-        setIsBlockingEnabled(JSON.parse(savedBlockingEnabled));
-      }
-      
-      const savedRedirectUrl = localStorage.getItem('redirectUrl');
-      if (savedRedirectUrl) {
-        setRedirectUrl(savedRedirectUrl);
-      }
-      
-      const savedSmartRedirectUrl = localStorage.getItem('smartRedirectUrl');
-      if (savedSmartRedirectUrl) {
-        setSmartRedirectUrl(savedSmartRedirectUrl);
-      }
-      
-      // Auto-sync with extension on page load
-      autoSyncWithExtension();
-      
-      // Load distraction counter from localStorage
-      // Initialize blocked history from localStorage
-      const savedBlockedHistory = localStorage.getItem('blockedHistory');
-      if (savedBlockedHistory) {
-        // Blocked history is managed automatically when sites are added/removed
-      }
-      
-      // Initialize total blocked sites counter (persistent, only goes up)
-      const savedTotalBlockedSites = localStorage.getItem('totalBlockedSites');
-      if (savedTotalBlockedSites) {
-        setTotalBlockedSites(JSON.parse(savedTotalBlockedSites));
-      }
-      
-      // Load upgrade status from localStorage
-      const savedUpgradeStatus = localStorage.getItem('isUpgraded');
-      if (savedUpgradeStatus) {
-        const upgradeStatus = JSON.parse(savedUpgradeStatus);
-        setIsUpgraded(upgradeStatus);
-        // Sync subscription status to extension on load
-        syncSubscriptionStatusToExtension(upgradeStatus);
-      }
-      
-      // Reset time saved if it's a new day
-      const today = new Date().toDateString();
-      const lastResetDate = localStorage.getItem('timeSavedResetDate');
-      if (lastResetDate !== today) {
-        localStorage.setItem('timeSavedByBlocking', '0');
-        localStorage.setItem('timeSavedResetDate', today);
-        console.log('🔄 Time saved reset for new day:', today);
-      }
-    } catch (error) {
-      console.error('Error loading blocked sites from localStorage:', error);
-    }
-  }, []);
+    const loadBlockedSites = async () => {
+      try {
+        // If user is logged in, try to load from backend first
+        if (token && user) {
+          try {
+            const response = await fetch(`${API_BASE_URL}/blocked-sites`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
 
-  // Check subscription status when user data changes
-  useEffect(() => {
-    const checkUserSubscription = async () => {
-      if (user) {
-        await checkSubscriptionStatus();
+            if (response.ok) {
+              const data = await response.json();
+              if (data.success && data.blockedSites) {
+                // Load from backend
+                setBlockedSites(data.blockedSites);
+                localStorage.setItem('blockedSites', JSON.stringify(data.blockedSites));
+                
+                // Load history from backend
+                const historyResponse = await fetch(`${API_BASE_URL}/blocked-sites/history`, {
+                  headers: {
+                    'Authorization': `Bearer ${token}`
+                  }
+                });
+                
+                if (historyResponse.ok) {
+                  const historyData = await historyResponse.json();
+                  if (historyData.success && historyData.history) {
+                    // Merge backend history with localStorage history
+                    const localHistory = JSON.parse(localStorage.getItem('blockedHistory') || '[]');
+                    const backendHistory = historyData.history.map((entry: any) => ({
+                      site: entry.site,
+                      timestamp: entry.timestamp,
+                      lastVisited: entry.lastVisited,
+                      visits: entry.visits
+                    }));
+                    
+                    // Merge and deduplicate
+                    const mergedHistory = [...backendHistory];
+                    localHistory.forEach((localEntry: any) => {
+                      if (!mergedHistory.some((e: any) => e.site === localEntry.site)) {
+                        mergedHistory.push(localEntry);
+                      }
+                    });
+                    
+                    localStorage.setItem('blockedHistory', JSON.stringify(mergedHistory));
+                  }
+                }
+                
+                console.log('✅ Loaded blocked sites from backend');
+                return; // Successfully loaded from backend, skip localStorage
+              }
+            }
+          } catch (backendError) {
+            console.warn('⚠️ Failed to load from backend, falling back to localStorage:', backendError);
+            // Fall through to localStorage
+          }
+        }
+        
+        // Fallback to localStorage (for non-logged-in users or if backend fails)
+        const savedBlockedSites = localStorage.getItem('blockedSites');
+        if (savedBlockedSites) {
+          setBlockedSites(JSON.parse(savedBlockedSites));
+        }
+        
+        const savedBlockingEnabled = localStorage.getItem('isBlockingEnabled');
+        if (savedBlockingEnabled !== null) {
+          setIsBlockingEnabled(JSON.parse(savedBlockingEnabled));
+        }
+        
+        const savedRedirectUrl = localStorage.getItem('redirectUrl');
+        if (savedRedirectUrl) {
+          setRedirectUrl(savedRedirectUrl);
+        }
+        
+        const savedSmartRedirectUrl = localStorage.getItem('smartRedirectUrl');
+        if (savedSmartRedirectUrl) {
+          setSmartRedirectUrl(savedSmartRedirectUrl);
+        }
+        
+        // Initialize blocked history from localStorage
+        const savedBlockedHistory = localStorage.getItem('blockedHistory');
+        if (savedBlockedHistory) {
+          // Blocked history is managed automatically when sites are added/removed
+        }
+        
+        // Initialize total blocked sites counter (persistent, only goes up)
+        const savedTotalBlockedSites = localStorage.getItem('totalBlockedSites');
+        if (savedTotalBlockedSites) {
+          setTotalBlockedSites(JSON.parse(savedTotalBlockedSites));
+        }
+        
+        // Load upgrade status from localStorage
+        const savedUpgradeStatus = localStorage.getItem('isUpgraded');
+        if (savedUpgradeStatus) {
+          const upgradeStatus = JSON.parse(savedUpgradeStatus);
+          setIsUpgraded(upgradeStatus);
+          // Sync subscription status to extension on load
+          syncSubscriptionStatusToExtension(upgradeStatus);
+        }
+        
+        // Reset time saved if it's a new day
+        const today = new Date().toDateString();
+        const lastResetDate = localStorage.getItem('timeSavedResetDate');
+        if (lastResetDate !== today) {
+          localStorage.setItem('timeSavedByBlocking', '0');
+          localStorage.setItem('timeSavedResetDate', today);
+          console.log('🔄 Time saved reset for new day:', today);
+        }
+        
+        // Auto-sync with extension on page load
+        autoSyncWithExtension();
+      } catch (error) {
+        console.error('Error loading blocked sites:', error);
       }
     };
     
-    checkUserSubscription();
-  }, [user]);
+    loadBlockedSites();
+  }, [token, user]);
+
+  // Check subscription status when user data changes and sync blocked sites to backend
+  useEffect(() => {
+    const syncDataOnLogin = async () => {
+      if (user && token) {
+        // Check subscription status
+        await checkSubscriptionStatus();
+        
+        // Sync existing localStorage blocked sites to backend (one-time migration)
+        const localBlockedSites = JSON.parse(localStorage.getItem('blockedSites') || '[]');
+        if (localBlockedSites.length > 0) {
+          try {
+            // Get current backend sites
+            const response = await fetch(`${API_BASE_URL}/blocked-sites`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              const backendSites = data.success ? (data.blockedSites || []) : [];
+              
+              // Find sites that exist locally but not in backend
+              const sitesToSync = localBlockedSites.filter((site: string) => !backendSites.includes(site));
+              
+              if (sitesToSync.length > 0) {
+                // Bulk sync missing sites to backend
+                const syncResponse = await fetch(`${API_BASE_URL}/blocked-sites/bulk`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify({ domains: sitesToSync })
+                });
+                
+                if (syncResponse.ok) {
+                  console.log(`✅ Synced ${sitesToSync.length} blocked sites to backend`);
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('Error syncing blocked sites to backend:', error);
+          }
+        }
+      }
+    };
+    
+    syncDataOnLogin();
+  }, [user, token]);
 
   // Handle Stripe checkout redirects
   useEffect(() => {
@@ -429,7 +530,7 @@ export const Dashboard: React.FC = () => {
   };
 
   // Function to add site to blocked history
-  const addToBlockedHistory = (site: string) => {
+  const addToBlockedHistory = async (site: string) => {
     const history = JSON.parse(localStorage.getItem('blockedHistory') || '[]');
     const timestamp = new Date().toISOString();
     
@@ -456,6 +557,9 @@ export const Dashboard: React.FC = () => {
     localStorage.setItem('blockedHistory', JSON.stringify(history));
     console.log('📝 Added to blocked history:', site);
     
+    // Sync history to backend if logged in (backend tracks this automatically via BlockedSite model)
+    // The backend already tracks visits and timestamps, so we don't need to sync manually
+    
     // Increment time saved counter (estimate 5 minutes saved per blocked visit)
     const timeSavedPerVisit = 5 * 60; // 5 minutes in seconds
     const currentTimeSaved = JSON.parse(localStorage.getItem('timeSavedByBlocking') || '0');
@@ -475,9 +579,6 @@ export const Dashboard: React.FC = () => {
     
     const trimmed = input.trim().toLowerCase();
     
-    // Must contain at least one dot (for TLD)
-    if (!trimmed.includes('.')) return false;
-    
     // Must not contain spaces
     if (trimmed.includes(' ')) return false;
     
@@ -488,25 +589,38 @@ export const Dashboard: React.FC = () => {
     if (trimmed.startsWith('.') || trimmed.endsWith('.') || 
         trimmed.startsWith('-') || trimmed.endsWith('-')) return false;
     
-    // Must have at least 2 parts (domain.tld)
-    const parts = trimmed.split('.');
-    if (parts.length < 2) return false;
+    // If it contains a dot, validate as full domain (e.g., youtube.com)
+    if (trimmed.includes('.')) {
+      // Must have at least 2 parts (domain.tld)
+      const parts = trimmed.split('.');
+      if (parts.length < 2) return false;
+      
+      // Each part must not be empty
+      if (parts.some(part => part.length === 0)) return false;
+      
+      // TLD must be at least 2 characters
+      const tld = parts[parts.length - 1];
+      if (tld.length < 2) return false;
+      
+      // Common TLDs
+      const commonTlds = ['com', 'org', 'net', 'edu', 'gov', 'mil', 'int', 'co', 'uk', 'ca', 'au', 'de', 'fr', 'jp', 'cn', 'in', 'br', 'ru', 'it', 'es', 'nl', 'se', 'no', 'dk', 'fi', 'pl', 'cz', 'hu', 'ro', 'bg', 'hr', 'si', 'sk', 'lt', 'lv', 'ee', 'ie', 'pt', 'gr', 'cy', 'mt', 'lu', 'be', 'at', 'ch', 'li', 'is', 'fo', 'gl', 'ax', 'ad', 'mc', 'sm', 'va', 'gi', 'je', 'gg', 'im', 'io', 'me', 'tv', 'cc', 'ws', 'tk', 'ml', 'ga', 'cf', 'app', 'dev', 'tech', 'online', 'site', 'website', 'blog', 'store', 'shop', 'news', 'info', 'biz', 'name', 'pro', 'mobi', 'asia', 'tel', 'travel', 'jobs', 'cat', 'aero', 'coop', 'museum', 'arpa', 'xxx', 'post', 'mil', 'gov', 'edu'];
+      
+      // If it's a common TLD, it's likely valid
+      if (commonTlds.includes(tld)) return true;
+      
+      // If TLD is 2-4 characters and contains only letters, it's likely valid
+      if (tld.length >= 2 && tld.length <= 4 && /^[a-z]+$/.test(tld)) return true;
+      
+      return false;
+    }
     
-    // Each part must not be empty
-    if (parts.some(part => part.length === 0)) return false;
-    
-    // TLD must be at least 2 characters
-    const tld = parts[parts.length - 1];
-    if (tld.length < 2) return false;
-    
-    // Common TLDs
-    const commonTlds = ['com', 'org', 'net', 'edu', 'gov', 'mil', 'int', 'co', 'uk', 'ca', 'au', 'de', 'fr', 'jp', 'cn', 'in', 'br', 'ru', 'it', 'es', 'nl', 'se', 'no', 'dk', 'fi', 'pl', 'cz', 'hu', 'ro', 'bg', 'hr', 'si', 'sk', 'lt', 'lv', 'ee', 'ie', 'pt', 'gr', 'cy', 'mt', 'lu', 'be', 'at', 'ch', 'li', 'is', 'fo', 'gl', 'ax', 'ad', 'mc', 'sm', 'va', 'gi', 'je', 'gg', 'im', 'io', 'me', 'tv', 'cc', 'ws', 'tk', 'ml', 'ga', 'cf', 'app', 'dev', 'tech', 'online', 'site', 'website', 'blog', 'store', 'shop', 'news', 'info', 'biz', 'name', 'pro', 'mobi', 'asia', 'tel', 'travel', 'jobs', 'cat', 'aero', 'coop', 'museum', 'arpa', 'xxx', 'post', 'mil', 'gov', 'edu'];
-    
-    // If it's a common TLD, it's likely valid
-    if (commonTlds.includes(tld)) return true;
-    
-    // If TLD is 2-4 characters and contains only letters, it's likely valid
-    if (tld.length >= 2 && tld.length <= 4 && /^[a-z]+$/.test(tld)) return true;
+    // If no dot, validate as domain name only (e.g., youtube) - will be normalized later
+    // Must be at least 2 characters and only alphanumeric/hyphens
+    if (trimmed.length >= 2 && /^[a-z0-9-]+$/.test(trimmed)) {
+      // Check if it's a known domain name that can be autocorrected
+      const knownDomains = ['facebook', 'youtube', 'instagram', 'twitter', 'reddit', 'tiktok', 'snapchat', 'discord', 'netflix', 'amazon', 'ebay', 'pinterest', 'linkedin', 'github', 'stackoverflow', 'wikipedia', 'google', 'bing', 'yahoo', 'twitch'];
+      return true; // Accept any valid domain name format, normalization will handle it
+    }
     
     return false;
   };
@@ -641,7 +755,7 @@ export const Dashboard: React.FC = () => {
       setSiteInputError('This site is already blocked');
       setSiteInputValid(false);
     } else if (!normalized || !isValidWebsiteDomain(value)) {
-      setSiteInputError('Please enter a valid website (e.g., facebook, youtube, reddit)');
+      setSiteInputError('Please enter a valid website (e.g., youtube.com, facebook, reddit)');
       setSiteInputValid(false);
     } else {
       setSiteInputError('');
@@ -1623,6 +1737,27 @@ export const Dashboard: React.FC = () => {
         setBlockedSites(newBlockedSites);
         localStorage.setItem('blockedSites', JSON.stringify(newBlockedSites));
         
+        // Save to backend if logged in
+        if (token) {
+          try {
+            const response = await fetch(`${API_BASE_URL}/blocked-sites`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ domain: normalizedSite })
+            });
+            
+            if (!response.ok) {
+              console.warn('Failed to save blocked site to backend, but continuing with local storage');
+            }
+          } catch (error) {
+            console.warn('Error saving blocked site to backend:', error);
+            // Continue anyway - localStorage is already updated
+          }
+        }
+        
         // Auto-enable blocking when adding a site
         if (!isBlockingEnabled) {
           setIsBlockingEnabled(true);
@@ -1687,6 +1822,25 @@ export const Dashboard: React.FC = () => {
     // Update UI immediately for instant feedback
     setBlockedSites(newBlockedSites);
     localStorage.setItem('blockedSites', JSON.stringify(newBlockedSites));
+    
+    // Remove from backend if logged in
+    if (token) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/blocked-sites/domain/${encodeURIComponent(site)}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          console.warn('Failed to remove blocked site from backend, but continuing with local storage');
+        }
+      } catch (error) {
+        console.warn('Error removing blocked site from backend:', error);
+        // Continue anyway - localStorage is already updated
+      }
+    }
     
     // Auto-disable blocking when removing the last site
     if (newBlockedSites.length === 0 && isBlockingEnabled) {
@@ -2705,19 +2859,18 @@ export const Dashboard: React.FC = () => {
 
 
 
-                {/* Daily Quote */}
+                {/* Focus Tip */}
                 <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
                   <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                      <div className="w-5 h-5">✨</div>
+                    <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-xl">
+                      {getTodaysTip().icon}
                     </div>
-                    <h3 className="text-lg font-bold text-white">Today's Quote</h3>
+                    <h3 className="text-lg font-bold text-white">Focus Tip</h3>
                   </div>
-                  <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4">
-                    <p className="text-purple-200 text-sm leading-relaxed italic">
-                      "{getTodaysQuote().text}"
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                    <p className="text-blue-100 text-sm leading-relaxed">
+                      {getTodaysTip().text}
                     </p>
-                    <p className="text-purple-300 text-xs mt-2">— {getTodaysQuote().author}</p>
                   </div>
                 </div>
                 

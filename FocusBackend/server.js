@@ -45,6 +45,7 @@ app.use(generalRateLimiter);
 const authRoutes = require('./routes/auth');
 const focusRoutes = require('./routes/focus');
 const subscriptionRoutes = require('./routes/subscription');
+const blockedSitesRoutes = require('./routes/blockedSites');
 
 // Basic route
 app.get('/', (req, res) => {
@@ -70,6 +71,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/focus', focusRoutes);
 app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/blocked-sites', blockedSitesRoutes);
 
 // 404 handler
 app.use(notFound);
