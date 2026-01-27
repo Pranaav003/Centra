@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html style="width: 340px; height: 500px;">
+<head>
+  <title>Centra</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="header">
+    <h1 class="app-title">Centra</h1>
+    <p class="app-subtitle">Lock in your focus</p>
+  </div>
+
+  <div class="power-button-container">
+    <button class="power-button" id="power-button">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="power-icon">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5.636 5.636a9 9 0 1 0 12.728 0M12 3v9" />
+      </svg>
+    </button>
+    
+    <!-- Password input field (hidden by default) -->
+    <div class="password-container" id="password-container" style="display: none;">
+      <div class="password-header">
+        <h3>Password Required</h3>
+        <p id="password-message">Enter password to disable blocking</p>
+      </div>
+      <div class="password-input-group">
+        <input type="password" id="password-input" placeholder="Enter password..." />
+        <div class="password-actions">
+          <button class="password-cancel" id="password-cancel">Cancel</button>
+          <button class="password-submit" id="password-submit">Continue</button>
+        </div>
+      </div>
+      <div class="password-error" id="password-error" style="display: none;"></div>
+    </div>
+  </div>
+  
+  <p class="status-text" id="status">Status: <span class="status-toggle"><strong>INACTIVE</strong></span></p>
+
+  <div class="website-section">
+    <div class="add-website-controls">
+      <div class="input-container">
+        <input type="text" id="new-site" placeholder="Enter website to block..." />
+        <div class="suggestions" id="suggestions"></div>
+      </div>
+      <button class="add-button" id="add-site">Block Website</button>
+    </div>
+    
+
+    <div class="blocked-websites-section" id="blocked-websites-section">
+      <h2>Blocked Websites: <span id="website-counter">0/5</span></h2>
+      <ul class="website-list" id="blocked-list"></ul>
+    </div>
+    
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
