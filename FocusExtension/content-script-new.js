@@ -86,8 +86,9 @@ if (isFocusWebApp) {
       type: event.data?.type
     });
     
-    // Accept messages from any localhost origin and our domain
-    if (event.origin !== 'https://focus-web-blocker.com' && 
+    // Accept messages from localhost and our production/alternate domains
+    if (event.origin !== 'https://focus-web-blocker.com' &&
+        event.origin !== 'https://centra-web-blocker.com' &&
         !event.origin.includes('localhost')) {
       console.log('❌ Rejecting message from non-localhost origin:', event.origin);
       return;
