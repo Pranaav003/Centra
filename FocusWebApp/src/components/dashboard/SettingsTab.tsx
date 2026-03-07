@@ -16,8 +16,10 @@ interface SettingsTabProps {
   smartRedirectUrl?: string;
   redirectUrl?: string;
   token?: string | null;
+  isUpgraded?: boolean;
   syncPasswordSettingsToExtension?: (passwordEnabled: boolean, password: string) => void;
   onSubscriptionChange?: (isPro: boolean) => void;
+  onOpenSubscriptionModal?: () => void;
 }
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({ 
@@ -27,8 +29,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   smartRedirectUrl = '',
   redirectUrl = `${FRONTEND_URL}/redirect`,
   token = null,
+  isUpgraded = false,
   syncPasswordSettingsToExtension,
-  onSubscriptionChange
+  onSubscriptionChange,
+  onOpenSubscriptionModal
 }) => {
   const [activeSection, setActiveSection] = useState<SettingsSection>('account');
 
@@ -79,10 +83,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           isBlockingEnabled={isBlockingEnabled}
           smartRedirectUrl={smartRedirectUrl}
           redirectUrl={redirectUrl}
+          isUpgraded={isUpgraded}
+          onUpgradeClick={onOpenSubscriptionModal}
         />;
       case 'subscription':
         return <SubscriptionManager 
           token={token}
+          isUpgraded={isUpgraded}
           onSubscriptionChange={onSubscriptionChange}
         />;
       case 'privacy':
@@ -98,6 +105,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           isBlockingEnabled={isBlockingEnabled}
           smartRedirectUrl={smartRedirectUrl}
           redirectUrl={redirectUrl}
+          isUpgraded={isUpgraded}
+          onUpgradeClick={onOpenSubscriptionModal}
         />;
     }
   };

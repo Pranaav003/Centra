@@ -29,6 +29,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
   logout: () => void;
+  deleteAccount: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
@@ -173,6 +174,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
   };
 
+  const deleteAccount = async () => {
+    if (!token) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/account`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to delete account');
+      }
+      logout();
+    } catch (err) {
+      console.error('Delete account error:', err);
+      throw err;
+    }
+  };
+
   const pauseAllTimers = () => {
     // Find all timer keys in localStorage and pause them
     const timerKeys = Object.keys(localStorage).filter(key => key.startsWith('timer_'));
@@ -198,6 +219,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     signup,
     logout,
+    deleteAccount,
     isLoading,
     error,
   };

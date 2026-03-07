@@ -30,6 +30,11 @@
     },
     {
       "matches": ["<all_urls>"],
+      "exclude_matches": [
+        "https://checkout.stripe.com/*",
+        "https://*.stripe.com/*",
+        "https://*.stripe.network/*"
+      ],
       "js": ["content-script-new.js"],
       "run_at": "document_start"
     }

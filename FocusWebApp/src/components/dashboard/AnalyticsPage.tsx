@@ -26,6 +26,8 @@ import {
   Timer,
   Focus
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { API_BASE_URL } from '../../config/api';
 
 interface FocusSession {
   _id: string;
@@ -52,6 +54,9 @@ interface AnalyticsData {
   };
   insights: string[];
   recommendations: string[];
+  completionRate?: number;
+  totalSessionsInPeriod?: number;
+  daysInPeriod?: number;
 }
 
 interface AnalyticsPageProps {
@@ -60,6 +65,7 @@ interface AnalyticsPageProps {
 }
 
 export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ sessions, blockedSites }) => {
+  const { token } = useAuth();
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
     focusScore: 0,
     productivityTrend: 'stable',
@@ -78,6 +84,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ sessions, blockedS
 
   const [selectedTimeframe, setSelectedTimeframe] = useState<'7d' | '30d' | '90d'>('7d');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   // Process sessions data to generate analytics
   useEffect(() => {
@@ -353,21 +360,56 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ sessions, blockedS
           sessionBreaks: Math.round(avgDuration)
         },
         insights,
-        recommendations
+        recommendations,
+        completionRate,
+        totalSessionsInPeriod: completedSessions.length,
+        daysInPeriod: daysAgo
       });
     };
 
     processAnalytics();
   }, [sessions, blockedSites, selectedTimeframe]);
   
-  // Function to generate AI insights (placeholder for future AI integration)
-  const generateAIInsights = () => {
+  const generateAIInsights = async () => {
+    if (!token) return;
     setIsAnalyzing(true);
-    // Simulate AI analysis
-    setTimeout(() => {
+    setAiError(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/analytics/insights`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          focusScore: analyticsData.focusScore,
+          productivityTrend: analyticsData.productivityTrend,
+          burnoutRisk: analyticsData.burnoutRisk,
+          optimalHours: analyticsData.optimalHours,
+          peakDistractionHours: analyticsData.distractionPatterns.peakHours,
+          commonSites: analyticsData.distractionPatterns.commonSites,
+          avgSessionMinutes: analyticsData.distractionPatterns.sessionBreaks,
+          completionRate: analyticsData.completionRate ?? 0,
+          totalSessionsInPeriod: analyticsData.totalSessionsInPeriod ?? 0,
+          daysInPeriod: analyticsData.daysInPeriod ?? (selectedTimeframe === '7d' ? 7 : selectedTimeframe === '30d' ? 30 : 90),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to generate insights');
+      }
+      if (data.insights?.length || data.recommendations?.length) {
+        setAnalyticsData(prev => ({
+          ...prev,
+          insights: Array.isArray(data.insights) ? data.insights : prev.insights,
+          recommendations: Array.isArray(data.recommendations) ? data.recommendations : prev.recommendations,
+        }));
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Failed to load AI insights');
+    } finally {
       setIsAnalyzing(false);
-      // Insights are already generated in processAnalytics
-    }, 1500);
+    }
   };
 
   const getBurnoutColor = (risk: string) => {
@@ -635,7 +677,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ sessions, blockedS
               </div>
               <button
                 onClick={generateAIInsights}
-                disabled={isAnalyzing}
+                disabled={isAnalyzing || !token}
                 className="px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-all"
               >
                 {isAnalyzing ? (
@@ -648,6 +690,9 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ sessions, blockedS
                 )}
               </button>
             </div>
+            {aiError && (
+              <p className="text-red-400 text-sm mt-2">{aiError}</p>
+            )}
             
             <div className="space-y-4">
               {analyticsData.insights.map((insight, index) => (

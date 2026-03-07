@@ -24,6 +24,8 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.1.5",
+    "openai": "^6.26.0",
+    "resend": "^6.9.3",
     "stripe": "^20.2.0"
   },
   "devDependencies": {

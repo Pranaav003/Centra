@@ -54,6 +54,14 @@ router.post('/', auth, async (req, res, next) => {
     // Normalize domain
     const normalizedDomain = domain.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
 
+    // Validate domain format and length (RFC 2535 max 253 chars, hostname chars only)
+    if (normalizedDomain.length > 253 || !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(normalizedDomain)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid domain format'
+      });
+    }
+
     // Check if site already exists for this user
     const existingSite = await BlockedSite.findOne({
       userId: req.user._id,
@@ -124,12 +132,19 @@ router.post('/bulk', auth, async (req, res, next) => {
       });
     }
 
+    const DOMAIN_MAX_LEN = 253;
+    const DOMAIN_REGEX = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i;
+
     const results = [];
     const errors = [];
 
     for (const domain of domains) {
       try {
         const normalizedDomain = domain.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+        if (normalizedDomain.length > DOMAIN_MAX_LEN || !DOMAIN_REGEX.test(normalizedDomain)) {
+          errors.push({ domain: String(domain).slice(0, 50), error: 'Invalid domain format' });
+          continue;
+        }
 
         // Check if already exists
         const existingSite = await BlockedSite.findOne({

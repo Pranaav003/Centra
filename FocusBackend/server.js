@@ -45,7 +45,10 @@ app.use(generalRateLimiter);
 const authRoutes = require('./routes/auth');
 const focusRoutes = require('./routes/focus');
 const subscriptionRoutes = require('./routes/subscription');
+const { verifySubscriptionHandler } = require('./routes/subscription');
 const blockedSitesRoutes = require('./routes/blockedSites');
+const analyticsRoutes = require('./routes/analytics');
+const auth = require('./middleware/auth');
 
 // Basic route
 app.get('/', (req, res) => {
@@ -70,8 +73,11 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/focus', focusRoutes);
+// Explicit verify route so it always matches (avoids 404 with some Express 5 / router setups)
+app.post('/api/subscription/verify', auth, verifySubscriptionHandler);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/blocked-sites', blockedSitesRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // 404 handler
 app.use(notFound);

@@ -17,14 +17,13 @@ declare global {
   }
 }
 import { useAuth } from '../../contexts/AuthContext';
-import { Plus, Target, Clock, TrendingUp, Calendar, CheckCircle, RotateCcw, User, Settings, LogOut, ChevronDown, FileText, Lock } from 'lucide-react';
+import { Plus, Target, Clock, TrendingUp, Calendar, CheckCircle, User, Settings, LogOut, ChevronDown, FileText, Lock, KeyRound, Check, LayoutDashboard } from 'lucide-react';
 import { CreateSessionModal } from './CreateSessionModal';
 import { SimpleTimer } from './SimpleTimer';
 import { FocusTimeChart } from './FocusTimeChart';
 import { EditSessionModal } from './EditSessionModal';
 import { DeleteSessionModal } from './DeleteSessionModal';
 import { ViewSessionModal } from './ViewSessionModal';
-import { SessionActionsMenu } from './SessionActionsMenu';
 import { SettingsTab } from './SettingsTab';
 import { Toast, ToastType } from '../ui/Toast';
 import { TimerNotification } from './TimerNotification';
@@ -51,9 +50,9 @@ export const Dashboard: React.FC = () => {
   const [sessions, setSessions] = useState<FocusSession[]>([]);
   const [filteredSessions, setFilteredSessions] = useState<FocusSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [errorCount, setErrorCount] = useState(0);
+  const [, setErrorCount] = useState(0);
   const [lastErrorTime, setLastErrorTime] = useState<number | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
@@ -66,21 +65,17 @@ export const Dashboard: React.FC = () => {
   const [isBlockingEnabled, setIsBlockingEnabled] = useState(true);
   const [redirectUrl, setRedirectUrl] = useState(`${FRONTEND_URL}/redirect`);
   const [smartRedirectUrl, setSmartRedirectUrl] = useState('');
-  const [isBlockingActive, setIsBlockingActive] = useState(false);
   const [newSiteInput, setNewSiteInput] = useState('');
   const [isUpgraded, setIsUpgraded] = useState(false);
-  const [isPro, setIsPro] = useState(false);
+  const [, setIsPro] = useState(false);
   const [isBlockedHistoryOpen, setIsBlockedHistoryOpen] = useState(false);
   const [totalBlockedSites, setTotalBlockedSites] = useState(0);
-  const [autocorrectPreview, setAutocorrectPreview] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isSessionsHistoryOpen, setIsSessionsHistoryOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   
   // Session state management
-  const [isSessionProcessing, setIsSessionProcessing] = useState(false);
-  const [lastSessionAction, setLastSessionAction] = useState<string | null>(null);
+  const [isSessionProcessing] = useState(false);
   
   // Site blocking state management
   const [isSiteOperationLoading, setIsSiteOperationLoading] = useState(false);
@@ -94,7 +89,6 @@ export const Dashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [timeFilter, setTimeFilter] = useState<string>('');
-  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
 
   const [editingSession, setEditingSession] = useState<FocusSession | null>(null);
   const [deletingSession, setDeletingSession] = useState<FocusSession | null>(null);
@@ -112,6 +106,36 @@ export const Dashboard: React.FC = () => {
   
   // Profile dropdown state
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  
+  // Dev unlock code (same key as Header)
+  const DEV_UNLOCK_KEY = 'devUnlocked';
+  const DEV_CODE = import.meta.env.VITE_DEV_UNLOCK_CODE || 'centradev';
+  const PRO_TOGGLE_CODE = 'lifeofpranaav';
+  const [devCode, setDevCode] = useState('');
+  const [devUnlocked, setDevUnlocked] = useState(() => typeof window !== 'undefined' && localStorage.getItem(DEV_UNLOCK_KEY) === 'true');
+  useEffect(() => {
+    setDevUnlocked(localStorage.getItem(DEV_UNLOCK_KEY) === 'true');
+  }, []);
+  const handleDevCodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = devCode.trim();
+    if (!trimmed) return;
+    if (trimmed === PRO_TOGGLE_CODE) {
+      const newStatus = !isUpgraded;
+      setIsUpgraded(newStatus);
+      localStorage.setItem('isUpgraded', newStatus.toString());
+      syncSubscriptionStatusToExtension(newStatus);
+      showToast(`Pro mode ${newStatus ? 'ON' : 'OFF'}`, 'success');
+      setDevCode('');
+      return;
+    }
+    if (trimmed === DEV_CODE) {
+      localStorage.setItem(DEV_UNLOCK_KEY, 'true');
+      setDevUnlocked(true);
+      setDevCode('');
+      showToast('Dev mode unlocked', 'success');
+    }
+  };
   
   // Password protection state
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -136,8 +160,16 @@ export const Dashboard: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setIsPro(data.isPro);
-        setIsUpgraded(data.isPro);
+        // Always trust backend: new accounts are free; only show Pro when backend says so
+        if (data.isPro) {
+          setIsPro(true);
+          setIsUpgraded(true);
+          localStorage.setItem('isUpgraded', 'true');
+        } else {
+          setIsPro(false);
+          setIsUpgraded(false);
+          localStorage.setItem('isUpgraded', 'false');
+        }
       }
     } catch (error) {
       console.error('Error checking subscription status:', error);
@@ -150,7 +182,13 @@ export const Dashboard: React.FC = () => {
       if (token) {
         console.log('Fetching sessions...');
         await fetchSessions();
-        await checkSubscriptionStatus();
+        // When returning from Stripe success, let the subscription=success effect run verify first
+        // so its checkSubscriptionStatus() sets Pro state; avoid racing with an early GET /status here
+        const urlParams = new URLSearchParams(window.location.search);
+        const isStripeSuccessRedirect = urlParams.get('subscription') === 'success' && urlParams.get('session_id');
+        if (!isStripeSuccessRedirect) {
+          await checkSubscriptionStatus();
+        }
       } else {
         console.log('No token, skipping session fetch');
       }
@@ -263,14 +301,7 @@ export const Dashboard: React.FC = () => {
           setTotalBlockedSites(JSON.parse(savedTotalBlockedSites));
         }
         
-        // Load upgrade status from localStorage
-        const savedUpgradeStatus = localStorage.getItem('isUpgraded');
-        if (savedUpgradeStatus) {
-          const upgradeStatus = JSON.parse(savedUpgradeStatus);
-          setIsUpgraded(upgradeStatus);
-          // Sync subscription status to extension on load
-          syncSubscriptionStatusToExtension(upgradeStatus);
-        }
+        // Upgrade status is set from API in checkSubscriptionStatus (and by dev code); do not restore from localStorage here so new accounts always get Free until backend says Pro
         
         // Reset time saved if it's a new day
         const today = new Date().toDateString();
@@ -291,13 +322,25 @@ export const Dashboard: React.FC = () => {
     loadBlockedSites();
   }, [token, user]);
 
+  // After load, sync persisted Pro state to extension so it stays in sync after reload
+  useEffect(() => {
+    if (token && user) {
+      syncSubscriptionStatusToExtension(isUpgraded);
+    }
+  }, [token, user, isUpgraded]);
+
   // Check subscription status when user data changes and sync blocked sites to backend
   useEffect(() => {
     const syncDataOnLogin = async () => {
       if (user && token) {
-        // Check subscription status
-        await checkSubscriptionStatus();
-        
+        // When returning from Stripe success, don't run checkSubscriptionStatus here so it
+        // can't overwrite the Pro state set by the subscription=success verify effect
+        const urlParams = new URLSearchParams(window.location.search);
+        const isStripeSuccessRedirect = urlParams.get('subscription') === 'success' && urlParams.get('session_id');
+        if (!isStripeSuccessRedirect) {
+          await checkSubscriptionStatus();
+        }
+
         // Sync existing localStorage blocked sites to backend (one-time migration)
         const localBlockedSites = JSON.parse(localStorage.getItem('blockedSites') || '[]');
         if (localBlockedSites.length > 0) {
@@ -342,27 +385,82 @@ export const Dashboard: React.FC = () => {
     syncDataOnLogin();
   }, [user, token]);
 
+  // When user returns to dashboard tab (e.g. from Stripe Portal), re-sync subscription from Stripe
+  useEffect(() => {
+    if (!token) return;
+    const onFocus = () => {
+      checkSubscriptionStatus();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [token]);
+
   // Handle Stripe checkout redirects
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const subscriptionStatus = urlParams.get('subscription');
+    const sessionId = urlParams.get('session_id'); // Stripe adds this via {CHECKOUT_SESSION_ID} in success URL
     
     if (subscriptionStatus === 'success') {
-      showToast('Payment successful! Welcome to Focus Pro!', 'success');
-      // Refresh subscription status
-      checkSubscriptionStatus();
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+      showToast('Payment successful! Verifying subscription...', 'success');
+      const verifySubscription = async () => {
+        if (!token) return;
+
+        console.log('🔄 Stripe success: verifying with session_id=', sessionId || '(none)');
+        try {
+          const response = await fetch(`${API_BASE_URL}/subscription/verify`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(sessionId ? { session_id: sessionId } : {}),
+          });
+
+          const data = response.ok ? await response.json() : null;
+          console.log('🔄 Verify response:', { ok: response.ok, status: response.status, isPro: data?.isPro, data });
+
+          if (response.ok && data) {
+            if (data.isPro) {
+              showToast('Payment successful! Welcome to Focus Pro!', 'success');
+              // Set Pro state immediately; do not call checkSubscriptionStatus() here so
+              // a late GET /status response cannot overwrite with stale isPro: false
+              setIsPro(true);
+              setIsUpgraded(() => true);
+              localStorage.setItem('isUpgraded', 'true');
+              syncSubscriptionStatusToExtension(true);
+              console.log('✅ Pro state set and synced to extension');
+              // Backup: re-apply Pro after a tick in case another effect overwrote state (e.g. loadBlockedSites)
+              setTimeout(() => {
+                setIsUpgraded(prev => prev || true);
+              }, 0);
+            } else {
+              showToast('Payment received. Subscription will be activated shortly.', 'info');
+              await checkSubscriptionStatus();
+            }
+          } else {
+            showToast('Payment received. Verifying subscription...', 'info');
+            await checkSubscriptionStatus();
+          }
+        } catch (error) {
+          console.error('Error verifying subscription:', error);
+          showToast('Payment received. Subscription will be activated shortly.', 'info');
+          await checkSubscriptionStatus();
+        } finally {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      };
+      
+      verifySubscription();
     } else if (subscriptionStatus === 'cancelled') {
       showToast('Payment cancelled', 'info');
-      // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, []);
+  }, [token]);
 
   // Listen for navigation events to detect blocked site visits
   useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    const handleBeforeUnload = (_event: BeforeUnloadEvent) => {
       // This will be called when the user navigates away from the page
       // We can't directly detect the destination URL here, but we can set up
       // a mechanism for the extension to notify us
@@ -507,28 +605,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // Helper function to clear all extension rules (for recovery)
-  const clearAllExtensionRules = () => {
-    try {
-      const messageId = Date.now() + Math.random();
-      
-      const message = {
-        type: 'FOCUS_EXTENSION_MESSAGE',
-        id: messageId,
-        payload: { action: 'clearAllRules' }
-      };
-      
-      console.log('🧹 Clearing all extension rules:', message);
-      
-      window.postMessage(message, '*');
-      
-      showToast('Clearing extension rules...', 'info');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('❌ Failed to clear extension rules:', errorMessage);
-    }
-  };
-
   // Function to add site to blocked history
   const addToBlockedHistory = async (site: string) => {
     const history = JSON.parse(localStorage.getItem('blockedHistory') || '[]');
@@ -617,9 +693,8 @@ export const Dashboard: React.FC = () => {
     // If no dot, validate as domain name only (e.g., youtube) - will be normalized later
     // Must be at least 2 characters and only alphanumeric/hyphens
     if (trimmed.length >= 2 && /^[a-z0-9-]+$/.test(trimmed)) {
-      // Check if it's a known domain name that can be autocorrected
-      const knownDomains = ['facebook', 'youtube', 'instagram', 'twitter', 'reddit', 'tiktok', 'snapchat', 'discord', 'netflix', 'amazon', 'ebay', 'pinterest', 'linkedin', 'github', 'stackoverflow', 'wikipedia', 'google', 'bing', 'yahoo', 'twitch'];
-      return true; // Accept any valid domain name format, normalization will handle it
+      // Accept any valid domain name format, normalization will handle it
+      return true;
     }
     
     return false;
@@ -780,16 +855,6 @@ export const Dashboard: React.FC = () => {
     setSuggestions([]);
   };
 
-
-  // Function to handle successful subscription activation
-  const handleSubscriptionActivated = async () => {
-    console.log('🎉 Subscription activated, checking status...');
-    // This would typically be called after successful payment
-    // For now, we'll check the subscription status
-    setTimeout(async () => {
-      await checkSubscriptionStatus();
-    }, 1000);
-  };
 
   // Auto-sync function
   const autoSyncWithExtension = async () => {
@@ -1325,36 +1390,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const handleViewSession = (session: FocusSession) => {
-    setViewingSession(session);
-    setIsViewModalOpen(true);
-  };
-
-  const handleCopySession = (session: FocusSession) => {
-    try {
-      // Create a new session based on the copied one
-      const copiedSession = {
-        title: `${session.title} (Copy)`,
-        description: session.description || '',
-        goal: session.goal,
-        tags: session.tags || [],
-        startTime: new Date().toISOString(),
-        status: 'active' as const,
-        actualTime: 0,
-        productivity: 0
-      };
-      
-      // Create the new session directly
-      createSession(copiedSession);
-      showToast('Session copied and created successfully!', 'success');
-    } catch (error) {
-      console.error('Error copying session:', error);
-      showToast('Failed to copy session', 'error');
-    }
-  };
-
-
-
   const showToast = (message: string, type: ToastType = 'success') => {
     setToast({ message, type, isVisible: true });
   };
@@ -1411,74 +1446,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const handleBulkDelete = async () => {
-    if (selectedSessions.size === 0) return;
-    
-    try {
-      console.log('Bulk deleting sessions:', Array.from(selectedSessions));
-      
-      const deletePromises = Array.from(selectedSessions).map(sessionId => 
-        handleDeleteSession(sessionId)
-      );
-      
-      await Promise.all(deletePromises);
-      setSelectedSessions(new Set());
-      showToast(`Successfully deleted ${selectedSessions.size} sessions`, 'success');
-    } catch (error) {
-      console.error('Bulk delete error:', error);
-      showToast('Failed to delete some sessions', 'error');
-    }
-  };
-
-  const handleBulkExport = () => {
-    if (selectedSessions.size === 0) return;
-    
-    try {
-      const selectedSessionsData = sessions.filter(s => selectedSessions.has(s._id));
-      const exportData = selectedSessionsData.map(session => ({
-        title: session.title,
-        description: session.description,
-        goal: session.goal,
-        status: session.status,
-        startTime: new Date(session.startTime).toLocaleString(),
-        endTime: session.endTime ? new Date(session.endTime).toLocaleString() : 'N/A',
-        actualTime: Math.floor(getActualElapsedTime(session) / 60),
-        tags: session.tags?.join(', ') || 'N/A',
-        productivity: session.productivity || 'N/A'
-      }));
-
-      const csvContent = [
-        Object.keys(exportData[0]).join(','),
-        ...exportData.map(row => Object.values(row).map(value => `"${value}"`).join(','))
-      ].join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `focus-sessions-${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      showToast(`Exported ${selectedSessionsData.length} sessions to CSV!`, 'success');
-    } catch (error) {
-      console.error('Error during bulk export:', error);
-      showToast('Failed to export sessions', 'error');
-    }
-  };
-
-  const toggleSessionSelection = (sessionId: string) => {
-    const newSelection = new Set(selectedSessions);
-    if (newSelection.has(sessionId)) {
-      newSelection.delete(sessionId);
-    } else {
-      newSelection.add(sessionId);
-    }
-    setSelectedSessions(newSelection);
-  };
-
   const hideTimerNotification = () => {
     setTimerNotification(null);
   };
@@ -1490,34 +1457,7 @@ export const Dashboard: React.FC = () => {
 
   const handleViewSessionClick = (session: FocusSession) => {
     setViewingSession(session);
-    setIsViewModalOpen(true);
     setIsSessionsHistoryOpen(false);
-  };
-
-  const handleDeleteSessionClick = (session: FocusSession) => {
-    setDeletingSession(session);
-  };
-
-  const handleResumeFromList = async (session: FocusSession) => {
-    try {
-      setIsSessionProcessing(true);
-      setLastSessionAction('resume');
-      
-      // Resume the session via API
-      await resumeSession(session._id);
-      
-      // Show success message
-      showToast(`Resumed "${session.title}" session!`, 'success');
-      
-      // The session should now appear in the active session section
-      // and the timer will automatically restore its state from localStorage
-    } catch (error) {
-      console.error('Error resuming session:', error);
-      showToast('Failed to resume session', 'error');
-    } finally {
-      setIsSessionProcessing(false);
-      setLastSessionAction(null);
-    }
   };
 
   const formatTime = (seconds: number) => {
@@ -1532,15 +1472,6 @@ export const Dashboard: React.FC = () => {
     } else {
       return `${secs}s`;
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
-    });
   };
 
   const getActualElapsedTime = (session: FocusSession) => {
@@ -1564,29 +1495,6 @@ export const Dashboard: React.FC = () => {
     return session.actualTime || 0;
   };
 
-  const getSessionProgress = (session: FocusSession) => {
-    const actualTime = getActualElapsedTime(session);
-    if (session.goal <= 0) return 0;
-    
-    const progress = (actualTime / session.goal) * 100;
-    return Math.min(progress, 100); // Cap at 100%
-  };
-
-  const getSessionStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'paused':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'interrupted':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'abandoned':
-        return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-      default:
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-    }
-  };
-
   // Calculate real-time statistics from sessions data
   const calculateTotalFocusTime = () => {
     return sessions.reduce((total, session) => {
@@ -1598,82 +1506,8 @@ export const Dashboard: React.FC = () => {
     }, 0);
   };
 
-  const calculateSessionStats = () => {
-    const completedSessions = sessions.filter(s => s.status === 'completed');
-    const totalSessions = sessions.filter(s => s.status !== 'active').length;
-    
-    return {
-      totalFocusTime: calculateTotalFocusTime(),
-      completedCount: completedSessions.length,
-      successRate: totalSessions > 0 ? Math.round((completedSessions.length / totalSessions) * 100) : 0,
-      averageProductivity: completedSessions.length > 0 
-        ? Math.round(completedSessions.reduce((sum, s) => sum + (s.productivity || 0), 0) / completedSessions.length)
-        : 0,
-      longestSession: completedSessions.length > 0 
-        ? Math.max(...completedSessions.map(s => s.actualTime))
-        : 0
-    };
-  };
-
-  const getCurrentStreak = () => {
-    if (sessions.length === 0) return 0;
-    
-    const sortedSessions = sessions
-      .filter(s => s.status === 'completed')
-      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-    
-    if (sortedSessions.length === 0) return 0;
-    
-    let streak = 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    for (let i = 0; i < sortedSessions.length; i++) {
-      const sessionDate = new Date(sortedSessions[i].startTime);
-      sessionDate.setHours(0, 0, 0, 0);
-      
-      const daysDiff = Math.floor((today.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (daysDiff === streak) {
-        streak++;
-      } else if (daysDiff > streak) {
-        break;
-      }
-    }
-    
-    return streak;
-  };
-
-
-
-  // Session validation helpers
-  const validateSessionData = (data: any) => {
-    const errors: string[] = [];
-    
-    if (!data.title || data.title.trim().length === 0) {
-      errors.push('Session title is required');
-    } else if (data.title.length > 100) {
-      errors.push('Session title must be less than 100 characters');
-    }
-    
-    if (!data.goal || data.goal < 1 || data.goal > 480) {
-      errors.push('Goal time must be between 1 and 480 minutes');
-    }
-    
-    if (data.description && data.description.length > 500) {
-      errors.push('Description must be less than 500 characters');
-    }
-    
-    return errors;
-  };
-
   const canStartNewSession = () => {
     return !sessions.some(s => s.status === 'active') && !isSessionProcessing;
-  };
-
-  const getSessionStatus = (sessionId: string) => {
-    const session = sessions.find(s => s._id === sessionId);
-    return session ? session.status : null;
   };
 
   const handleError = (errorMessage: string, context?: string) => {
@@ -1699,12 +1533,6 @@ export const Dashboard: React.FC = () => {
         fetchSessions(true);
       }, 3000);
     }
-  };
-
-  const clearError = () => {
-    setError(null);
-    setErrorCount(0);
-    setLastErrorTime(null);
   };
 
   // Website blocker functions
@@ -1949,20 +1777,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const updateRedirectUrl = (url: string) => {
-    if (!url.trim()) return;
-    
-    // Basic URL validation
-    try {
-      new URL(url);
-      setRedirectUrl(url.trim());
-      localStorage.setItem('redirectUrl', url.trim());
-      showToast('Redirect URL updated successfully', 'success');
-    } catch (error) {
-      showToast('Please enter a valid URL', 'error');
-    }
-  };
-
   const updateSmartRedirectUrl = (url: string) => {
     console.log('🔧 updateSmartRedirectUrl called with:', url);
     
@@ -1998,6 +1812,8 @@ export const Dashboard: React.FC = () => {
 
   // Handle subscription checkout
   const handleCheckout = async (planType: 'monthly' | 'annual' | 'lifetime') => {
+    console.log('handleCheckout called with planType:', planType);
+    
     if (!token) {
       showToast('Please log in to continue', 'error');
       return;
@@ -2014,12 +1830,18 @@ export const Dashboard: React.FC = () => {
         lifetime: import.meta.env.VITE_STRIPE_PRICE_LIFETIME || 'price_lifetime'
       };
 
+      console.log('Price IDs:', priceIdMap);
       const priceId = priceIdMap[planType];
-      if (!priceId) {
-        showToast('Invalid plan selected', 'error');
+      console.log('Selected price ID:', priceId);
+      
+      if (!priceId || priceId.startsWith('price_') === false) {
+        console.error('Invalid price ID:', priceId);
+        showToast('Invalid plan selected. Please check configuration.', 'error');
         return;
       }
 
+      console.log('Calling checkout API:', `${API_BASE_URL}/subscription/create-checkout-session`);
+      
       const response = await fetch(`${API_BASE_URL}/subscription/create-checkout-session`, {
         method: 'POST',
         headers: {
@@ -2032,17 +1854,28 @@ export const Dashboard: React.FC = () => {
         }),
       });
 
+      console.log('Response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error('Checkout error:', errorData);
+        if (response.status === 409 && errorData.code === 'ALREADY_SUBSCRIBED' && errorData.portalUrl) {
+          showToast(errorData.message || 'You already have an active plan.', 'info');
+          window.location.href = errorData.portalUrl;
+          return;
+        }
         throw new Error(errorData.message || 'Failed to create checkout session');
       }
 
       const data = await response.json();
+      console.log('Checkout response:', data);
       
       if (data.success && data.url) {
         // Redirect to Stripe checkout
+        console.log('Redirecting to Stripe checkout:', data.url);
         window.location.href = data.url;
       } else {
+        console.error('Invalid checkout response:', data);
         showToast('Failed to create checkout session', 'error');
       }
     } catch (error) {
@@ -2053,57 +1886,6 @@ export const Dashboard: React.FC = () => {
       setIsCreatingCheckout(false);
     }
   };
-
-  const syncWithExtension = async () => {
-    try {
-      console.log('Sync button clicked - using message passing...');
-      
-      // Use message passing to communicate with the extension
-      const response = await new Promise<{ blockedSites: string[], blockingEnabled: boolean, smartRedirectUrl: string }>((resolve, reject) => {
-        const messageId = Date.now() + Math.random();
-        
-        const listener = (event: MessageEvent) => {
-          if (event.data.type === 'FOCUS_EXTENSION_RESPONSE' && 
-              event.data.id === messageId) {
-            window.removeEventListener('message', listener);
-            resolve(event.data.response);
-          }
-        };
-        
-        window.addEventListener('message', listener);
-        
-        // Send message to extension
-        window.postMessage({
-          type: 'FOCUS_EXTENSION_MESSAGE',
-          id: messageId,
-          payload: { action: 'getBlockedSites' }
-        }, '*');
-        
-        // Timeout after 5 seconds
-        setTimeout(() => {
-          window.removeEventListener('message', listener);
-          reject(new Error('Extension communication timeout'));
-        }, 5000);
-      });
-      
-      console.log('Extension response:', response);
-      
-      if (response && 'blockedSites' in response && response.blockedSites) {
-        setBlockedSites(response.blockedSites);
-        setIsBlockingEnabled(response.blockingEnabled || false);
-        setSmartRedirectUrl(response.smartRedirectUrl || '');
-        showToast('Synced with Chrome extension', 'success');
-      } else {
-        showToast('No blocked sites found in extension', 'info');
-      }
-      
-    } catch (error) {
-      console.error('Error syncing with extension:', error);
-      showToast('Failed to sync with extension. Please ensure the extension is installed and active.', 'error');
-    }
-  };
-
-
 
   // State to force re-renders for real-time updates
   const [statsUpdateTrigger, setStatsUpdateTrigger] = useState(0);
@@ -2314,44 +2096,49 @@ export const Dashboard: React.FC = () => {
         )}
         
         {/* Left Sidebar Navigation */}
-        <div className={`fixed lg:static inset-y-0 left-0 w-64 bg-gray-900 border-r border-gray-800 flex flex-col z-50 transform transition-transform duration-300 ease-in-out ${
+        <div className={`fixed lg:static inset-y-0 left-0 w-72 bg-gray-900 border-r border-gray-800 flex flex-col z-50 transform transition-transform duration-300 ease-in-out ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}>
           {/* Logo Section */}
-          <div className="p-6 border-b border-gray-800">
+          <div className="p-8 border-b border-gray-800">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-700 rounded-xl flex items-center justify-center">
-                  <Target className="w-6 h-6 text-white" />
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-700 rounded-xl flex items-center justify-center shadow-lg">
+                  <Target className="w-7 h-7 text-white" />
                 </div>
-                <h1 className="text-xl font-bold text-white">Focus Dashboard</h1>
+                <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard</h1>
               </div>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="lg:hidden p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                className="lg:hidden p-2.5 hover:bg-gray-800 rounded-xl transition-colors"
                 aria-label="Close menu"
               >
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
           </div>
           
-          {/* Navigation Menu */}
-          <nav className="flex-1 p-4 space-y-2">
+          {/* Navigation Menu - spread to fill space */}
+          <nav className="flex-1 flex flex-col justify-center py-8 px-5 gap-4">
             <button
               onClick={() => {
                 handleTabChange('overview');
                 setIsMobileMenuOpen(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+              className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-200 text-left ${
                 activeTab === 'overview' 
-                  ? 'bg-red-600 text-white' 
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/30' 
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
             >
-              <span>Overview</span>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                activeTab === 'overview' ? 'bg-white/20' : 'bg-gray-800'
+              }`}>
+                <LayoutDashboard className="w-5 h-5" />
+              </div>
+              <span className="text-base font-semibold">Overview</span>
             </button>
             
             <button
@@ -2359,13 +2146,18 @@ export const Dashboard: React.FC = () => {
                 handleTabChange('sessions');
                 setIsMobileMenuOpen(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+              className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-200 text-left ${
                 activeTab === 'sessions' 
-                  ? 'bg-red-600 text-white' 
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/30' 
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
             >
-              <span>Focus Sessions</span>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                activeTab === 'sessions' ? 'bg-white/20' : 'bg-gray-800'
+              }`}>
+                <Clock className="w-5 h-5" />
+              </div>
+              <span className="text-base font-semibold">Focus Sessions</span>
             </button>
             
             <button
@@ -2373,21 +2165,30 @@ export const Dashboard: React.FC = () => {
                 handleAnalyticsClick();
                 setIsMobileMenuOpen(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 relative overflow-hidden ${
+              className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-200 text-left relative overflow-hidden ${
                 activeTab === 'analytics' 
-                  ? 'bg-purple-600 text-white shadow-lg' 
-                  : 'text-gray-400 hover:text-white hover:shadow-lg hover:scale-105'
+                  ? isUpgraded 
+                    ? 'bg-purple-800 text-white shadow-lg shadow-purple-900/30' 
+                    : 'bg-purple-600 text-white shadow-lg shadow-purple-900/30' 
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800 hover:shadow-lg'
               }`}
             >
-              {activeTab !== 'analytics' && (
+              {activeTab !== 'analytics' && !isUpgraded && (
                 <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 opacity-80"></div>
               )}
-              <span className="relative z-10">Analytics</span>
-              <div className="absolute top-1 right-2 animate-pulse">
-                <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-xs px-2 py-1 rounded-full font-bold shadow-lg">
-                  PRO
-                </span>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 relative z-10 ${
+                activeTab === 'analytics' ? 'bg-white/20' : 'bg-gray-800'
+              }`}>
+                <TrendingUp className="w-5 h-5" />
               </div>
+              <span className="text-base font-semibold relative z-10">Analytics</span>
+              {!isUpgraded && (
+                <div className="absolute top-2 right-3 animate-pulse relative z-10">
+                  <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-xs px-2 py-1 rounded-full font-bold shadow-lg">
+                    PRO
+                  </span>
+                </div>
+              )}
             </button>
             
             <button
@@ -2395,62 +2196,20 @@ export const Dashboard: React.FC = () => {
                 handleSettingsClick();
                 setIsMobileMenuOpen(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+              className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-200 text-left ${
                 activeTab === 'settings' 
-                  ? 'bg-red-600 text-white' 
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/30' 
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
             >
-              <span>Settings and More</span>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                activeTab === 'settings' ? 'bg-white/20' : 'bg-gray-800'
+              }`}>
+                <Settings className="w-5 h-5" />
+              </div>
+              <span className="text-base font-semibold">Settings and More</span>
             </button>
           </nav>
-          
-          {/* Subscription Toggle for Testing */}
-          <div className="p-4 border-t border-gray-800">
-            <div className="text-xs text-gray-500 mb-2">Testing Tools</div>
-            <button 
-              onClick={() => {
-                const newStatus = !isUpgraded;
-                setIsUpgraded(newStatus);
-                localStorage.setItem('isUpgraded', newStatus.toString());
-                console.log('🔧 Subscription status toggled to:', newStatus);
-                showToast(`Subscription status: ${newStatus ? 'Pro (Unlimited)' : 'Free (5 sites max)'}`, 'info');
-                
-                // Sync subscription status to extension
-                syncSubscriptionStatusToExtension(newStatus);
-              }}
-              className={`w-full px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                isUpgraded 
-                  ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white' 
-                  : 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white'
-              }`}
-              title={`Currently: ${isUpgraded ? 'Pro (Unlimited)' : 'Free (5 sites max)'} - Click to toggle`}
-            >
-              {isUpgraded ? '🟢 Pro Mode' : '🟡 Free Mode'}
-            </button>
-          </div>
-          
-          {/* Developer Tools Section */}
-          <div className="p-4 border-t border-gray-800">
-            <div className="text-xs text-gray-500 mb-2">Developer Tools</div>
-            <div className="flex space-x-2">
-              <button className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
-                <span className="text-xs">API</span>
-              </button>
-              <button className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
-                {`</>`}
-              </button>
-              <button className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
-                <span className="text-xs">R</span>
-              </button>
-              <button className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
-                <span className="text-xs">D</span>
-              </button>
-              <button className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
-                <span className="text-xs">i</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Main Content Area */}
@@ -2458,7 +2217,7 @@ export const Dashboard: React.FC = () => {
           
           {/* Profile Section */}
           <div className="bg-gray-900 border-b border-gray-800">
-            <div className="flex justify-between items-center p-4">
+            <div className="flex justify-between items-center p-4 gap-3">
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -2473,7 +2232,57 @@ export const Dashboard: React.FC = () => {
                   )}
                 </svg>
               </button>
-              <div className="relative" data-profile-dropdown>
+              {/* Dev code input - leftmost (visible on all screens) */}
+              <form onSubmit={handleDevCodeSubmit} className="flex items-center flex-shrink-0">
+                <input
+                  type="password"
+                  value={devCode}
+                  onChange={(e) => setDevCode(e.target.value)}
+                  placeholder="Password..."
+                  className="min-w-[8rem] w-36 px-3 py-2 text-sm bg-gray-800 border-2 border-gray-500 rounded-lg text-gray-200 placeholder-gray-400 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/30"
+                  aria-label="Developer unlock code"
+                />
+                <button
+                  type="submit"
+                  className="ml-2 p-2 rounded-lg bg-gray-700 border-2 border-gray-500 text-gray-300 hover:text-white hover:border-gray-400 transition-colors"
+                  title="Submit dev code"
+                  aria-label="Submit dev code"
+                >
+                  {devUnlocked ? <Check className="w-4 h-4 text-green-400" /> : <KeyRound className="w-4 h-4" />}
+                </button>
+              </form>
+              {/* Quick Actions - next to profile */}
+              <div className="flex items-center gap-2 flex-1 justify-end min-w-0">
+                <button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 rounded-lg transition-all duration-200 text-sm font-medium text-white shrink-0"
+                  title="Start Session"
+                >
+                  <Plus className="w-4 h-4 text-red-400" />
+                  <span className="hidden sm:inline">Start</span>
+                </button>
+                <button
+                  onClick={() => setIsSessionsHistoryOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 rounded-lg transition-all duration-200 text-sm font-medium text-white shrink-0"
+                  title="View Progress"
+                >
+                  <Clock className="w-4 h-4 text-blue-400" />
+                  <span className="hidden sm:inline">Progress</span>
+                </button>
+                <button
+                  onClick={handleAnalyticsClick}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium text-white shrink-0 ${
+                    isUpgraded
+                      ? 'bg-purple-700/40 hover:bg-purple-700/50 border border-purple-600/50'
+                      : 'bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30'
+                  }`}
+                  title="Analytics"
+                >
+                  <TrendingUp className={`w-4 h-4 ${isUpgraded ? 'text-purple-300' : 'text-purple-400'}`} />
+                  <span className="hidden sm:inline">Analytics</span>
+                </button>
+              </div>
+              <div className="relative shrink-0" data-profile-dropdown>
                 <button
                   onClick={handleProfileClick}
                   className="flex items-center space-x-3 p-3 bg-gray-800/50 hover:bg-gray-700/50 rounded-xl transition-all duration-200 border border-gray-700/50 hover:border-gray-600/50"
@@ -2538,42 +2347,6 @@ export const Dashboard: React.FC = () => {
             {/* Conditional Tab Content */}
                         {activeTab === 'overview' && (
               <div className="space-y-6">
-                
-                {/* Quick Actions Bar */}
-                <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-                  <h3 className="text-lg font-bold text-white mb-4">Quick Actions</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <button 
-                      onClick={() => setIsCreateModalOpen(true)}
-                      className="flex flex-col items-center p-4 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 rounded-lg transition-all duration-200 group"
-                    >
-                      <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <Plus className="w-6 h-6 text-red-400" />
-                      </div>
-                      <span className="text-sm font-medium text-white">Start Session</span>
-                    </button>
-                    
-                    <button 
-                      onClick={() => setIsSessionsHistoryOpen(true)}
-                      className="flex flex-col items-center p-4 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 rounded-lg transition-all duration-200 group"
-                    >
-                      <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <Clock className="w-6 h-6 text-blue-400" />
-                      </div>
-                      <span className="text-sm font-medium text-white">View Progress</span>
-                    </button>
-                    
-                    <button 
-                      onClick={handleAnalyticsClick}
-                      className="flex flex-col items-center p-4 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg transition-all duration-200 group"
-                    >
-                      <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <TrendingUp className="w-6 h-5 text-purple-400" />
-                      </div>
-                      <span className="text-sm font-medium text-white">Analytics</span>
-                    </button>
-                  </div>
-                </div>
 
                 {/* Enhanced Blocked Websites Section */}
                 <div className="w-full">
@@ -3273,11 +3046,13 @@ export const Dashboard: React.FC = () => {
               smartRedirectUrl={smartRedirectUrl}
               redirectUrl={redirectUrl}
               token={token}
+              isUpgraded={isUpgraded}
               syncPasswordSettingsToExtension={syncPasswordSettingsToExtension}
               onSubscriptionChange={(isPro) => {
                 setIsPro(isPro);
                 setIsUpgraded(isPro);
               }}
+              onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
             />}
           </div>
 
@@ -3453,10 +3228,12 @@ export const Dashboard: React.FC = () => {
               </button>
               <button 
                 onClick={() => {
+                  console.log('Upgrade button clicked, selectedPlan:', selectedPlan);
                   if (!selectedPlan) {
                     showToast('Please select a plan', 'error');
                     return;
                   }
+                  console.log('Calling handleCheckout with:', selectedPlan);
                   handleCheckout(selectedPlan);
                 }}
                 disabled={!selectedPlan || isCreatingCheckout}

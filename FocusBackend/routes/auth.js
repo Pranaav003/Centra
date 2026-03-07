@@ -1,10 +1,13 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const FocusSession = require('../models/FocusSession');
+const BlockedSite = require('../models/BlockedSite');
 const auth = require('../middleware/auth');
 const { validateSignup, validateLogin } = require('../middleware/validation');
 const { authRateLimiter } = require('../middleware/rateLimiter');
 const logger = require('../utils/logger');
+const { sendFeedbackEmail } = require('../services/feedbackEmail');
 const router = express.Router();
 
 // Generate JWT token
@@ -23,9 +26,10 @@ const generateToken = (userId) => {
 router.post('/signup', authRateLimiter, validateSignup, async (req, res, next) => {
   try {
     const { email, password, firstName, lastName } = req.body;
+    const normalizedEmail = email.toLowerCase().trim();
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    // Check if user already exists (match schema lowercase)
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(400).json({ 
         success: false,
@@ -35,7 +39,7 @@ router.post('/signup', authRateLimiter, validateSignup, async (req, res, next) =
 
     // Create new user
     const user = new User({
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       password,
       firstName: firstName.trim(),
       lastName: lastName.trim()
@@ -129,6 +133,50 @@ router.get('/validate', auth, async (req, res, next) => {
     });
   } catch (error) {
     logger.error('Token validation error', { error: error.message, stack: error.stack });
+    next(error);
+  }
+});
+
+// @route   DELETE /api/auth/account
+// @desc    Permanently delete account and all associated data. Email can be used again for a new signup.
+// @access  Private
+router.delete('/account', auth, async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    await FocusSession.deleteMany({ userId });
+    await BlockedSite.deleteMany({ userId });
+    await User.findByIdAndDelete(userId);
+
+    logger.info('Account permanently deleted', { userId, email: req.user.email });
+
+    res.json({
+      success: true,
+      message: 'Account and all data have been permanently deleted. You can sign up again with the same email anytime.'
+    });
+  } catch (error) {
+    logger.error('Account deletion error', { error: error.message, userId: req.user?._id });
+    next(error);
+  }
+});
+
+// @route   POST /api/auth/feedback
+// @desc    Send account-deletion feedback to configured email (e.g. before deleting account)
+// @access  Private
+router.post('/feedback', auth, async (req, res, next) => {
+  try {
+    const { reason, message } = req.body || {};
+    const userEmail = req.user.email;
+
+    await sendFeedbackEmail({
+      reason: typeof reason === 'string' ? reason.trim() : '',
+      message: typeof message === 'string' ? message.trim() : '',
+      userEmail: userEmail || '',
+    });
+
+    res.json({ success: true, message: 'Feedback sent.' });
+  } catch (error) {
+    logger.error('Feedback send error', { error: error.message, userId: req.user?._id });
     next(error);
   }
 });

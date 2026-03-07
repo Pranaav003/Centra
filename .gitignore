@@ -61,5 +61,12 @@ FocusExtension/*.pem
 *.key
 *.cert
 
+# Test files with sensitive data
+**/test-*.js
+**/*test*.js
+**/*-test.js
+test-password*.js
+test-password*.md
+
 # Documentation builds
 docs/_build/

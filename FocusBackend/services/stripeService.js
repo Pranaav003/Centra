@@ -7,6 +7,9 @@ const logger = require('../utils/logger');
 class StripeService {
   // Create a new customer
   async createCustomer(email, name) {
+    if (!stripe) {
+      throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY in your environment variables.');
+    }
     try {
       const customer = await stripe.customers.create({
         email,
@@ -62,16 +65,25 @@ class StripeService {
     }
   }
 
-  // Create a billing portal session
-  async createBillingPortalSession(customerId, returnUrl) {
+  // Create a billing portal session (optionally deep-link to subscription update / change plan)
+  async createBillingPortalSession(customerId, returnUrl, subscriptionId = null) {
     if (!stripe) {
       throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY in your environment variables.');
     }
     try {
-      const session = await stripe.billingPortal.sessions.create({
+      const params = {
         customer: customerId,
         return_url: returnUrl,
-      });
+      };
+      if (subscriptionId) {
+        params.flow_data = {
+          type: 'subscription_update',
+          subscription_update: {
+            subscription: subscriptionId,
+          },
+        };
+      }
+      const session = await stripe.billingPortal.sessions.create(params);
       return session;
     } catch (error) {
       logger.error('Error creating billing portal session', { error: error.message });
@@ -129,6 +141,60 @@ class StripeService {
       return subscriptions;
     } catch (error) {
       logger.error('Error retrieving customer subscriptions', { error: error.message });
+      throw error;
+    }
+  }
+
+  // Get checkout session (optionally with expanded customer for email match)
+  async getCheckoutSession(sessionId, options = {}) {
+    if (!stripe) {
+      throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY in your environment variables.');
+    }
+    try {
+      const retrieveOptions = options.expandCustomer ? { expand: ['customer'] } : {};
+      const session = await stripe.checkout.sessions.retrieve(sessionId, retrieveOptions);
+      return session;
+    } catch (error) {
+      logger.error('Error retrieving checkout session', { error: error.message });
+      throw error;
+    }
+  }
+
+  // List completed checkout sessions for a customer (used to verify payment after redirect)
+  async listCustomerCheckoutSessions(customerId) {
+    if (!stripe) {
+      throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY in your environment variables.');
+    }
+    try {
+      const sessions = await stripe.checkout.sessions.list({
+        customer: customerId,
+        limit: 10,
+      });
+      if (sessions.data) {
+        sessions.data = sessions.data
+          .filter(s => s.status === 'complete')
+          .sort((a, b) => (b.created || 0) - (a.created || 0));
+      }
+      return sessions;
+    } catch (error) {
+      logger.error('Error listing customer checkout sessions', { error: error.message });
+      throw error;
+    }
+  }
+
+  // Get customer's payment intents (for one-time payments)
+  async getCustomerPaymentIntents(customerId) {
+    if (!stripe) {
+      throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY in your environment variables.');
+    }
+    try {
+      const paymentIntents = await stripe.paymentIntents.list({
+        customer: customerId,
+        limit: 10,
+      });
+      return paymentIntents;
+    } catch (error) {
+      logger.error('Error retrieving customer payment intents', { error: error.message });
       throw error;
     }
   }

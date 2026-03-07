@@ -47,7 +47,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup }) => {
       <div className="bg-white rounded-lg shadow-xl p-8">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
-          <p className="text-gray-600">Sign in to your Focus account</p>
+          <p className="text-gray-600">Sign in to your Centra account</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

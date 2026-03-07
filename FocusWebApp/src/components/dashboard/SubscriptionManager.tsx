@@ -4,6 +4,7 @@ import { API_BASE_URL } from '../../config/api';
 
 interface SubscriptionManagerProps {
   token: string | null;
+  isUpgraded?: boolean;
   onSubscriptionChange?: (isPro: boolean) => void;
 }
 
@@ -15,8 +16,8 @@ interface SubscriptionStatus {
   status?: string;
 }
 
-export default function SubscriptionManager({ token, onSubscriptionChange }: SubscriptionManagerProps) {
-  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>({ isPro: false });
+export default function SubscriptionManager({ token, isUpgraded = false, onSubscriptionChange }: SubscriptionManagerProps) {
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>({ isPro: isUpgraded });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
@@ -27,6 +28,10 @@ export default function SubscriptionManager({ token, onSubscriptionChange }: Sub
       checkSubscriptionStatus();
     }
   }, [token]);
+
+  useEffect(() => {
+    setSubscriptionStatus(prev => ({ ...prev, isPro: isUpgraded }));
+  }, [isUpgraded]);
 
   const checkSubscriptionStatus = async () => {
     if (!token) return;
@@ -41,9 +46,10 @@ export default function SubscriptionManager({ token, onSubscriptionChange }: Sub
 
       if (response.ok) {
         const data = await response.json();
-        setSubscriptionStatus(data);
+        const effectivePro = data.isPro || isUpgraded;
+        setSubscriptionStatus({ ...data, isPro: effectivePro });
         if (onSubscriptionChange) {
-          onSubscriptionChange(data.isPro);
+          onSubscriptionChange(effectivePro);
         }
       } else {
         setError('Failed to check subscription status');
@@ -56,27 +62,41 @@ export default function SubscriptionManager({ token, onSubscriptionChange }: Sub
     }
   };
 
-  const handleUpgrade = async () => {
+  const handleUpgrade = async (planType: 'monthly' | 'annual' | 'lifetime' = 'monthly') => {
     if (!token) return;
 
     try {
       setIsCreatingCheckout(true);
+      setError(null);
+      const priceIdMap: Record<string, string> = {
+        monthly: import.meta.env.VITE_STRIPE_PRICE_MONTHLY || '',
+        annual: import.meta.env.VITE_STRIPE_PRICE_ANNUAL || '',
+        lifetime: import.meta.env.VITE_STRIPE_PRICE_LIFETIME || ''
+      };
+      const priceId = priceIdMap[planType] || priceIdMap.monthly;
+      if (!priceId || !priceId.startsWith('price_')) {
+        setError('Stripe is not configured. Please set VITE_STRIPE_PRICE_* in your .env file.');
+        return;
+      }
       const response = await fetch(`${API_BASE_URL}/subscription/create-checkout-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          priceId: 'price_1234567890', // Replace with actual Stripe price ID
-        }),
+        body: JSON.stringify({ priceId, planType }),
       });
 
-      if (response.ok) {
-        const { url } = await response.json();
-        window.open(url, '_blank');
+      const data = await response.json();
+      if (response.ok && data.success && data.url) {
+        window.location.href = data.url;
+      } else if (response.status === 409 && data.code === 'ALREADY_SUBSCRIBED') {
+        setError(data.message || 'You already have an active subscription.');
+        if (data.portalUrl) {
+          window.location.href = data.portalUrl;
+        }
       } else {
-        setError('Failed to create checkout session');
+        setError(data.message || 'Failed to create checkout session');
       }
     } catch (error) {
       console.error('Error creating checkout session:', error);
@@ -99,11 +119,11 @@ export default function SubscriptionManager({ token, onSubscriptionChange }: Sub
         },
       });
 
-      if (response.ok) {
-        const { url } = await response.json();
-        window.open(url, '_blank');
+      const data = await response.json();
+      if (response.ok && data.success && data.url) {
+        window.location.href = data.url;
       } else {
-        setError('Failed to create billing portal session');
+        setError(data.message || 'Failed to create billing portal session');
       }
     } catch (error) {
       console.error('Error creating portal session:', error);
@@ -211,6 +231,10 @@ export default function SubscriptionManager({ token, onSubscriptionChange }: Sub
               </div>
             )}
 
+            <p className="text-gray-400 text-sm mb-4">
+              Use the portal to switch between <strong className="text-gray-300">monthly</strong> and <strong className="text-gray-300">annual</strong> plans. Lifetime access is a one-time purchase—choose it when upgrading from a free account.
+            </p>
+
             <div className="flex space-x-3">
               <button
                 onClick={handleManageBilling}
@@ -276,8 +300,14 @@ export default function SubscriptionManager({ token, onSubscriptionChange }: Sub
             </div>
 
             <div className="space-y-3 mb-6">
+              <p className="text-gray-400 text-sm">Subscription plans — switch between these in Manage Billing after you subscribe.</p>
               {/* Monthly Plan */}
-              <div className="bg-gray-800 border border-gray-700 rounded-xl p-3 hover:border-purple-500/50 transition-colors cursor-pointer">
+              <button
+                type="button"
+                onClick={() => handleUpgrade('monthly')}
+                disabled={isCreatingCheckout}
+                className="w-full text-left bg-gray-800 border border-gray-700 rounded-xl p-3 hover:border-purple-500/50 transition-colors cursor-pointer disabled:opacity-50"
+              >
                 <div className="flex items-center justify-between mb-1">
                   <div>
                     <h3 className="text-base font-semibold text-white">Monthly Plan</h3>
@@ -289,10 +319,15 @@ export default function SubscriptionManager({ token, onSubscriptionChange }: Sub
                   </div>
                 </div>
                 <div className="text-xs text-gray-500">Cancel anytime</div>
-              </div>
+              </button>
               
               {/* Annual Plan */}
-              <div className="bg-gray-800 border-2 border-purple-500/50 rounded-xl p-3 hover:border-purple-500 transition-colors cursor-pointer relative">
+              <button
+                type="button"
+                onClick={() => handleUpgrade('annual')}
+                disabled={isCreatingCheckout}
+                className="w-full text-left bg-gray-800 border-2 border-purple-500/50 rounded-xl p-3 hover:border-purple-500 transition-colors cursor-pointer relative disabled:opacity-50"
+              >
                 <div className="absolute -top-2 left-4 bg-purple-500 text-white text-xs px-2 py-1 rounded-full">
                   BEST VALUE
                 </div>
@@ -307,27 +342,33 @@ export default function SubscriptionManager({ token, onSubscriptionChange }: Sub
                   </div>
                 </div>
                 <div className="text-xs text-gray-500">Billed annually ($35.88)</div>
-              </div>
+              </button>
               
-              {/* Lifetime Plan */}
-              <div className="bg-gray-800 border border-gray-700 rounded-xl p-3 hover:border-blue-500/50 transition-colors cursor-pointer">
+              {/* Lifetime Plan - one-time purchase */}
+              <p className="text-gray-400 text-sm mt-4 pt-2 border-t border-gray-700">One-time purchase — pay once, no subscription.</p>
+              <button
+                type="button"
+                onClick={() => handleUpgrade('lifetime')}
+                disabled={isCreatingCheckout}
+                className="w-full text-left bg-gray-800 border border-gray-700 rounded-xl p-3 hover:border-blue-500/50 transition-colors cursor-pointer disabled:opacity-50"
+              >
                 <div className="flex items-center justify-between mb-1">
                   <div>
-                    <h3 className="text-base font-semibold text-white">Lifetime Access</h3>
-                    <p className="text-xs text-gray-400">One-time payment</p>
+                  <h3 className="text-base font-semibold text-white">Lifetime Access</h3>
+                  <p className="text-xs text-gray-400">One-time payment — no subscription</p>
                   </div>
                   <div className="text-right">
                     <div className="text-xl font-bold text-white">$50.00</div>
                     <div className="text-xs text-gray-400">forever</div>
                   </div>
                 </div>
-                <div className="text-xs text-gray-500">Never pay again</div>
-              </div>
+                <div className="text-xs text-gray-500">Never pay again • Single payment</div>
+              </button>
             </div>
             
             <div className="flex space-x-3">
               <button
-                onClick={handleUpgrade}
+                onClick={() => handleUpgrade('monthly')}
                 disabled={isCreatingCheckout}
                 className="flex-1 flex items-center justify-center space-x-2 py-3 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-purple-600/50 disabled:to-blue-600/50 text-white font-medium rounded-lg transition-colors"
               >
@@ -345,6 +386,9 @@ export default function SubscriptionManager({ token, onSubscriptionChange }: Sub
                 )}
               </button>
             </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Tip: If checkout fails or shows errors, try disabling ad blockers or use an incognito window. After you subscribe, use Manage Billing to switch between monthly and annual; lifetime is a one-time purchase only.
+            </p>
           </div>
         </div>
       )}
