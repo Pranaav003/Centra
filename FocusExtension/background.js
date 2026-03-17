@@ -341,6 +341,8 @@ function notifyWebAppAboutStorageChange(changes) {
         if (tab.url && (
           tab.url.includes('localhost') || 
           tab.url.includes('focus-web-blocker.com') ||
+          tab.url.includes('centra-web-blocker.com') ||
+          tab.url.includes('centra-app.onrender.com') ||
           tab.url.includes('127.0.0.1')
         )) {
           try {
@@ -472,6 +474,8 @@ function notifyWebAppAboutBlockedSiteVisit(url) {
       if (tab.url && (
         tab.url.includes('localhost') || 
         tab.url.includes('focus-web-blocker.com') ||
+        tab.url.includes('centra-web-blocker.com') ||
+        tab.url.includes('centra-app.onrender.com') ||
         tab.url.includes('127.0.0.1')
       )) {
         try {
