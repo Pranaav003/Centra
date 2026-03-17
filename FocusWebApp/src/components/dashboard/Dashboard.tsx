@@ -2084,7 +2084,7 @@ export const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0f0f0f]">
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0f0f0f] overflow-x-hidden">
       <SEO
         title="Dashboard | Centra"
         description="Manage your focus sessions, blocked websites, and productivity analytics. Track your progress and stay focused with Centra."
@@ -2092,7 +2092,7 @@ export const Dashboard: React.FC = () => {
       />
 
 
-      <div className="flex h-screen bg-[#1a1a1a]">
+      <div className="flex h-screen bg-[#1a1a1a] min-w-0 overflow-x-hidden">
         
         {/* Mobile Menu Overlay */}
         {isMobileMenuOpen && (
@@ -2220,11 +2220,11 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
           
           {/* Profile Section */}
-          <div className="bg-gray-900 border-b border-gray-800">
-            <div className="flex justify-between items-center p-4 gap-3">
+          <div className="bg-gray-900 border-b border-gray-800 overflow-x-hidden">
+            <div className="flex flex-wrap justify-between items-center p-4 gap-3 min-w-0">
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -2240,13 +2240,13 @@ export const Dashboard: React.FC = () => {
                 </svg>
               </button>
               {/* Dev code input - leftmost (visible on all screens) */}
-              <form onSubmit={handleDevCodeSubmit} className="flex items-center flex-shrink-0">
+              <form onSubmit={handleDevCodeSubmit} className="flex items-center flex-1 min-w-0 max-w-[9rem] sm:max-w-36">
                 <input
                   type="password"
                   value={devCode}
                   onChange={(e) => setDevCode(e.target.value)}
                   placeholder="Password..."
-                  className="min-w-[8rem] w-36 px-3 py-2 text-sm bg-gray-800 border-2 border-gray-500 rounded-lg text-gray-200 placeholder-gray-400 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/30"
+                  className="w-full min-w-0 px-2 sm:px-3 py-2 text-sm bg-gray-800 border-2 border-gray-500 rounded-lg text-gray-200 placeholder-gray-400 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/30"
                   aria-label="Developer unlock code"
                 />
                 <button
@@ -2349,23 +2349,23 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+          <div className="flex-1 p-4 md:p-6 overflow-y-auto overflow-x-hidden min-w-0">
             
             {/* Conditional Tab Content */}
                         {activeTab === 'overview' && (
-              <div className="space-y-6">
+              <div className="space-y-6 min-w-0">
 
                 {/* Enhanced Blocked Websites Section */}
-                <div className="w-full">
-                  <div className="bg-gray-800 border border-gray-700 rounded-xl p-8">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center space-x-3">
+                <div className="w-full min-w-0">
+                  <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 sm:p-6 lg:p-8">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                      <div className="flex items-center space-x-3 min-w-0">
                         <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center">
                           <Target className="w-6 h-6 text-red-400" />
                         </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-white">Website Blocker: {blockedSites.length}/5</h3>
-                          <p className="text-gray-400">Block distracting websites and maintain focus during work sessions</p>
+                        <div className="min-w-0">
+                          <h3 className="text-xl font-bold text-white truncate">Website Blocker: {blockedSites.length}/5</h3>
+                          <p className="text-gray-400 text-sm sm:text-base break-words">Block distracting websites and maintain focus during work sessions</p>
                         </div>
                       </div>
                       
@@ -2659,7 +2659,7 @@ export const Dashboard: React.FC = () => {
             )}
 
             {activeTab === 'sessions' && (
-              <div className="space-y-6">
+              <div className="space-y-6 min-w-0">
                 <div className="text-center mb-6">
                   <h2 className="text-3xl font-bold text-white mb-4">Focus Sessions</h2>
                   <p className="text-gray-400">Manage and track all your focus sessions</p>
@@ -2921,7 +2921,9 @@ export const Dashboard: React.FC = () => {
 
             {activeTab === 'analytics' && (
               isUpgraded ? (
-                <AnalyticsPage sessions={sessions} blockedSites={blockedSites} />
+                <div className="min-w-0">
+                  <AnalyticsPage sessions={sessions} blockedSites={blockedSites} />
+                </div>
               ) : (
                 <div className="space-y-6">
                   {/* Pro Feature - Modern Blurred Content */}
@@ -3046,7 +3048,9 @@ export const Dashboard: React.FC = () => {
               )
             )}
 
-            {activeTab === 'settings' && <SettingsTab
+            {activeTab === 'settings' && (
+            <div className="min-w-0">
+            <SettingsTab
               sessions={sessions}
               blockedSites={blockedSites}
               isBlockingEnabled={isBlockingEnabled}
@@ -3060,7 +3064,9 @@ export const Dashboard: React.FC = () => {
                 setIsUpgraded(isPro);
               }}
               onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
-            />}
+            />
+            </div>
+            )}
           </div>
 
         {error && (
@@ -3648,10 +3654,10 @@ export const Dashboard: React.FC = () => {
           onClick={handlePasswordCancel}
         >
           <div 
-            className="bg-gray-900 border border-gray-700 rounded-2xl max-w-md w-full shadow-2xl"
+            className="bg-gray-900 border border-gray-700 rounded-2xl max-w-md w-full min-w-0 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-8">
+            <div className="p-4 sm:p-6 lg:p-8">
               <div className="text-center mb-6">
                 <div className="w-20 h-20 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Lock className="w-10 h-10 text-white" />

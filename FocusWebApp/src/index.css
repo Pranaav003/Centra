@@ -65,9 +65,11 @@
   }
   body {
     @apply bg-[#1a1a1a] text-foreground;
+    overflow-x: hidden;
   }
   html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
   }
 }
 
