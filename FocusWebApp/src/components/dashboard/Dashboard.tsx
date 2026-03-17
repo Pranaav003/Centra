@@ -66,7 +66,7 @@ export const Dashboard: React.FC = () => {
   const [redirectUrl, setRedirectUrl] = useState(`${FRONTEND_URL}/redirect`);
   const [smartRedirectUrl, setSmartRedirectUrl] = useState('');
   const [newSiteInput, setNewSiteInput] = useState('');
-  const [isUpgraded, setIsUpgraded] = useState(false);
+  const [isUpgraded, setIsUpgraded] = useState(() => typeof window !== 'undefined' && localStorage.getItem('isUpgraded') === 'true');
   const [, setIsPro] = useState(false);
   const [isBlockedHistoryOpen, setIsBlockedHistoryOpen] = useState(false);
   const [totalBlockedSites, setTotalBlockedSites] = useState(0);
@@ -124,6 +124,7 @@ export const Dashboard: React.FC = () => {
       const newStatus = !isUpgraded;
       setIsUpgraded(newStatus);
       localStorage.setItem('isUpgraded', newStatus.toString());
+      localStorage.setItem('devProOverride', newStatus.toString()); // Persist dev Pro so it survives reload
       syncSubscriptionStatusToExtension(newStatus);
       showToast(`Pro mode ${newStatus ? 'ON' : 'OFF'}`, 'success');
       setDevCode('');
@@ -160,15 +161,21 @@ export const Dashboard: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        // Always trust backend: new accounts are free; only show Pro when backend says so
         if (data.isPro) {
           setIsPro(true);
           setIsUpgraded(true);
           localStorage.setItem('isUpgraded', 'true');
         } else {
-          setIsPro(false);
-          setIsUpgraded(false);
-          localStorage.setItem('isUpgraded', 'false');
+          // Backend says free; respect dev Pro override (lifeofpranaav) so it persists across reload
+          const devProOverride = typeof window !== 'undefined' && localStorage.getItem('devProOverride') === 'true';
+          if (devProOverride) {
+            setIsUpgraded(true);
+            localStorage.setItem('isUpgraded', 'true');
+          } else {
+            setIsPro(false);
+            setIsUpgraded(false);
+            localStorage.setItem('isUpgraded', 'false');
+          }
         }
       }
     } catch (error) {
