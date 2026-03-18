@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 
 // Chrome extension types
 declare global {
@@ -106,6 +106,8 @@ export const Dashboard: React.FC = () => {
   
   // Profile dropdown state
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const profileButtonRef = useRef<HTMLDivElement>(null);
+  const [profileDropdownPosition, setProfileDropdownPosition] = useState<{ top: number; right: number } | null>(null);
   
   // Dev unlock code (same key as Header)
   const DEV_UNLOCK_KEY = 'devUnlocked';
@@ -836,7 +838,7 @@ export const Dashboard: React.FC = () => {
     if (normalized && blockedSites.includes(normalized)) {
       setSiteInputError('This site is already blocked');
       setSiteInputValid(false);
-    } else if (!normalized || !isValidWebsiteDomain(value)) {
+    } else if (!normalized) {
       setSiteInputError('Please enter a valid website (e.g., youtube.com, facebook, reddit)');
       setSiteInputValid(false);
     } else {
@@ -965,11 +967,24 @@ export const Dashboard: React.FC = () => {
     };
   }, [blockedSites, isBlockingEnabled]);
 
+  // Position profile dropdown with fixed so it appears above main content
+  useLayoutEffect(() => {
+    if (!isProfileDropdownOpen || !profileButtonRef.current) {
+      setProfileDropdownPosition(null);
+      return;
+    }
+    const rect = profileButtonRef.current.getBoundingClientRect();
+    setProfileDropdownPosition({
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
+    });
+  }, [isProfileDropdownOpen]);
+
   // Close profile dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
-      if (!target.closest('[data-profile-dropdown]')) {
+      if (!target.closest('[data-profile-dropdown]') && !target.closest('[data-profile-dropdown-menu]')) {
         setIsProfileDropdownOpen(false);
       }
     };
@@ -2222,8 +2237,8 @@ export const Dashboard: React.FC = () => {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
           
-          {/* Profile Section */}
-          <div className="bg-gray-900 border-b border-gray-800 overflow-x-hidden">
+          {/* Profile Section - z-30 so dropdown appears above main content */}
+          <div className="relative z-30 bg-gray-900 border-b border-gray-800 overflow-x-hidden">
             <div className="flex flex-wrap justify-between items-center p-4 gap-3 min-w-0">
               {/* Mobile Menu Button */}
               <button
@@ -2289,7 +2304,7 @@ export const Dashboard: React.FC = () => {
                   <span className="hidden sm:inline">Analytics</span>
                 </button>
               </div>
-              <div className="relative shrink-0" data-profile-dropdown>
+              <div className="relative shrink-0" data-profile-dropdown ref={profileButtonRef}>
                 <button
                   onClick={handleProfileClick}
                   className="flex items-center space-x-3 p-3 bg-gray-800/50 hover:bg-gray-700/50 rounded-xl transition-all duration-200 border border-gray-700/50 hover:border-gray-600/50"
@@ -2303,50 +2318,52 @@ export const Dashboard: React.FC = () => {
                   </div>
                   <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isProfileDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
-                
-                {/* Profile Dropdown */}
-                {isProfileDropdownOpen && (
-                  <div className="absolute top-full right-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-50">
-                    <div className="p-4 border-b border-gray-700">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-700 rounded-full flex items-center justify-center">
-                          <User className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-white">{user?.firstName} {user?.lastName}</p>
-                          <p className="text-xs text-gray-400">{user?.email}</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="p-2">
-                      <button
-                        onClick={() => {
-                          handleTabChange('settings');
-                          setIsProfileDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center space-x-3 px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
-                      >
-                        <Settings className="w-4 h-4" />
-                        <span>Settings</span>
-                      </button>
-                      
-                      <button
-                        onClick={() => {
-                          logout();
-                          setIsProfileDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center space-x-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Sign Out</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
+
+          {/* Profile Dropdown - fixed so it appears above main content */}
+          {isProfileDropdownOpen && profileDropdownPosition && (
+            <div
+              data-profile-dropdown-menu
+              className="fixed w-64 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-[9999]"
+              style={{ top: profileDropdownPosition.top, right: profileDropdownPosition.right }}
+            >
+              <div className="p-4 border-b border-gray-700">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-700 rounded-full flex items-center justify-center">
+                    <User className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">{user?.firstName} {user?.lastName}</p>
+                    <p className="text-xs text-gray-400">{user?.email}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-2">
+                <button
+                  onClick={() => {
+                    handleTabChange('settings');
+                    setIsProfileDropdownOpen(false);
+                  }}
+                  className="w-full flex items-center space-x-3 px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
+                </button>
+                <button
+                  onClick={() => {
+                    logout();
+                    setIsProfileDropdownOpen(false);
+                  }}
+                  className="w-full flex items-center space-x-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Main Content */}
           <div className="flex-1 p-4 md:p-6 overflow-y-auto overflow-x-hidden min-w-0">
@@ -2365,7 +2382,7 @@ export const Dashboard: React.FC = () => {
                         </div>
                         <div className="min-w-0">
                           <h3 className="text-xl font-bold text-white truncate">Website Blocker: {blockedSites.length}/5</h3>
-                          <p className="text-gray-400 text-sm sm:text-base break-words">Block distracting websites and maintain focus during work sessions</p>
+                          <p className="text-gray-400 text-sm sm:text-base break-words">Use the Centra addon to block distracting websites and maintain focus during work sessions</p>
                         </div>
                       </div>
                       
@@ -2465,7 +2482,7 @@ export const Dashboard: React.FC = () => {
                                     }}
                                     disabled={!isUpgraded && blockedSites.length >= 5}
                                     readOnly={!isUpgraded && blockedSites.length >= 5}
-                                    className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none transition-all duration-200 ${
+                                    className={`w-full h-12 px-3 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none transition-all duration-200 ${
                                       !isUpgraded && blockedSites.length >= 5 
                                         ? 'cursor-not-allowed opacity-60 border-gray-600' 
                                         : siteInputError
@@ -2485,22 +2502,23 @@ export const Dashboard: React.FC = () => {
                                       }
                                     }}
                                   />
-                                  {siteInputError && (
-                                    <p className="mt-1 text-xs text-red-400 flex items-center">
-                                      <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                      </svg>
-                                      {siteInputError}
-                                    </p>
-                                  )}
-                                  {siteInputValid && !siteInputError && newSiteInput.trim() && (
-                                    <p className="mt-1 text-xs text-green-400 flex items-center">
-                                      <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                      </svg>
-                                      Valid website
-                                    </p>
-                                  )}
+                                  <div className="mt-1 min-h-[1rem]">
+                                    {siteInputError ? (
+                                      <p className="text-xs text-red-400 flex items-center">
+                                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                        </svg>
+                                        {siteInputError}
+                                      </p>
+                                    ) : siteInputValid && newSiteInput.trim() ? (
+                                      <p className="text-xs text-green-400 flex items-center">
+                                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                        </svg>
+                                        Valid website
+                                      </p>
+                                    ) : null}
+                                  </div>
                                 </div>
                                 {!isUpgraded && blockedSites.length >= 5 ? (
                                   <button 
@@ -2517,7 +2535,7 @@ export const Dashboard: React.FC = () => {
                                       }
                                     }}
                                     disabled={!newSiteInput.trim() || isSiteOperationLoading || (!isUpgraded && blockedSites.length >= 5) || !siteInputValid || !!siteInputError}
-                                    className={`px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-all duration-200 ${
+                                    className={`h-12 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-all duration-200 ${
                                       (!newSiteInput.trim() || isSiteOperationLoading || (!isUpgraded && blockedSites.length >= 5) || !siteInputValid || !!siteInputError)
                                         ? 'opacity-50 cursor-not-allowed' 
                                         : 'hover:shadow-lg hover:shadow-red-500/25'
