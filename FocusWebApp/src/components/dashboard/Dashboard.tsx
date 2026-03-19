@@ -1580,8 +1580,14 @@ export const Dashboard: React.FC = () => {
       }
 
       // Prevent blocking the Centra web app itself (would break the UI)
-      const SELF_DOMAIN = 'centra.pranaaviyer.com';
-      if (normalizedSite === SELF_DOMAIN) {
+      const SELF_BLOCKLIST = [
+        'centra.pranaaviyer.com',
+        'https://centra.pranaaviyer.com',
+        'https://centra.pranaaviyer.com/dashboard',
+        'centra.pranaaviyer.com/dashboard',
+      ];
+      const siteLower = site.trim().toLowerCase();
+      if (normalizedSite === 'centra.pranaaviyer.com' || SELF_BLOCKLIST.some((x) => siteLower === x || siteLower.startsWith(`${x}/`) || siteLower.includes(x))) {
         showToast('You cannot block your own Centra website.', 'error');
         return;
       }

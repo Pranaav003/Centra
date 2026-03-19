@@ -513,6 +513,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('👤 Sender:', sender);
   
   try {
+    const SELF_BLOCK_HOSTS = ['centra.pranaaviyer.com'];
+    const normalizeHost = (value) => {
+      if (!value || typeof value !== 'string') return '';
+      return value
+        .toLowerCase()
+        .trim()
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .split('/')[0];
+    };
+    const isSelfBlocked = (value) => {
+      const host = normalizeHost(value);
+      return SELF_BLOCK_HOSTS.includes(host);
+    };
+
     if (request.action === 'getBlockedSites') {
       chrome.storage.local.get(['blockedSites', 'blockingEnabled', 'smartRedirectUrl', 'isUpgraded'], (data) => {
         if (chrome.runtime.lastError) {
@@ -531,12 +546,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     
     if (request.action === 'setBlockedSites') {
-      chrome.storage.local.set({ blockedSites: request.blockedSites }, () => {
+      const incoming = Array.isArray(request.blockedSites) ? request.blockedSites : [];
+      const filtered = incoming.filter((s) => !isSelfBlocked(s));
+      chrome.storage.local.set({ blockedSites: filtered }, () => {
         if (chrome.runtime.lastError) {
           console.error('Error setting blocked sites:', chrome.runtime.lastError.message || chrome.runtime.lastError);
           sendResponse({ error: 'Failed to set blocked sites' });
         } else {
-          sendResponse({ success: true });
+          sendResponse({ success: true, removedSelfDomains: incoming.length - filtered.length });
         }
       });
       return true;
