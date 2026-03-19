@@ -116,7 +116,15 @@ if (isFocusWebApp) {
         console.log('✅ Background script response received:', response);
         
         if (chrome.runtime.lastError) {
-          console.error('❌ Chrome runtime error:', chrome.runtime.lastError);
+          const runtimeMsg = (chrome.runtime.lastError.message || '').toLowerCase();
+          const isExpectedTransient =
+            runtimeMsg.includes('extension context invalidated') ||
+            runtimeMsg.includes('receiving end does not exist');
+          if (isExpectedTransient) {
+            console.warn('ℹ️ Extension transient state:', chrome.runtime.lastError.message);
+          } else {
+            console.error('❌ Chrome runtime error:', chrome.runtime.lastError);
+          }
           // Send error response back to web app
           window.postMessage({
             type: 'FOCUS_EXTENSION_RESPONSE',
