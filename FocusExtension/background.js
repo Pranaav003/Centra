@@ -116,7 +116,9 @@ function updateBlockingRules() {
     }
 
     const rules = [];
-    let nextRuleId = 1000; // Start with a higher base ID to avoid conflicts
+    // Use a high, time-based base to avoid collisions with any pre-existing/static rule IDs.
+    // (Chrome requires rule IDs to be globally unique across active rules.)
+    let nextRuleId = 100000 + (Date.now() % 1000000);
     console.log('🔢 Starting rule ID generation from:', nextRuleId);
     
     const PROD_REDIRECT_URL = "https://centra.pranaaviyer.com/redirect";
