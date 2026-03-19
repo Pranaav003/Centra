@@ -119,8 +119,8 @@ function updateBlockingRules() {
     let nextRuleId = 1000; // Start with a higher base ID to avoid conflicts
     console.log('🔢 Starting rule ID generation from:', nextRuleId);
     
-    // Determine redirect URL - use smart redirect if available, otherwise default
-    let redirectUrl = smartRedirectUrl || "http://localhost:3000/redirect";
+    // Determine redirect URL - use smart redirect if available, otherwise default to production redirect page
+    let redirectUrl = smartRedirectUrl || "https://centra.pranaaviyer.com/redirect";
     
     // Ensure the redirect URL is properly formatted for Chrome's declarativeNetRequest
     if (smartRedirectUrl && smartRedirectUrl.trim()) {
