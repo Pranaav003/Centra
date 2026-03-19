@@ -223,6 +223,9 @@ export const Dashboard: React.FC = () => {
         // If user is logged in, try to load from backend first
         if (token && user) {
           try {
+            // Keep a copy of local state so we don't wipe it if backend returns empty
+            // (e.g. transient save issues or auth mis-match during the same session).
+            const savedBlockedSites = JSON.parse(localStorage.getItem('blockedSites') || '[]');
             const response = await fetch(`${API_BASE_URL}/blocked-sites`, {
               headers: {
                 'Authorization': `Bearer ${token}`
@@ -232,9 +235,11 @@ export const Dashboard: React.FC = () => {
             if (response.ok) {
               const data = await response.json();
               if (data.success && data.blockedSites) {
-                // Load from backend
-                setBlockedSites(data.blockedSites);
-                localStorage.setItem('blockedSites', JSON.stringify(data.blockedSites));
+                const backendBlockedSites = Array.isArray(data.blockedSites) ? data.blockedSites : [];
+                // Merge backend + localStorage (dedupe) so reload never wipes sites.
+                const mergedBlockedSites = [...new Set([...backendBlockedSites, ...savedBlockedSites])];
+                setBlockedSites(mergedBlockedSites);
+                localStorage.setItem('blockedSites', JSON.stringify(mergedBlockedSites));
                 
                 // Load history from backend
                 const historyResponse = await fetch(`${API_BASE_URL}/blocked-sites/history`, {
