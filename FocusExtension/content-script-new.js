@@ -87,13 +87,24 @@ if (isFocusWebApp) {
       type: event.data?.type
     });
     
-    // Accept messages from localhost and our production/alternate domains
-    if (event.origin !== 'https://focus-web-blocker.com' &&
-        event.origin !== 'https://centra-web-blocker.com' &&
-        event.origin !== 'https://centra-app.onrender.com' &&
-        event.origin !== 'https://centra.pranaaviyer.com' &&
-        !event.origin.includes('localhost')) {
-      console.log('❌ Rejecting message from non-localhost origin:', event.origin);
+    // Accept messages only from our known web app origins.
+    // We validate by hostname to tolerate variants like `www.*`.
+    const allowedHosts = [
+      'focus-web-blocker.com',
+      'centra-web-blocker.com',
+      'centra-app.onrender.com',
+      'centra.pranaaviyer.com',
+    ];
+    let originHost = '';
+    try {
+      originHost = event.origin ? new URL(event.origin).hostname : '';
+    } catch (e) {
+      originHost = '';
+    }
+    const isLocalhostOrigin = !!originHost && originHost.includes('localhost');
+    const isAllowedOrigin = allowedHosts.some((host) => originHost === host || originHost.endsWith(`.${host}`));
+    if (!isAllowedOrigin && !isLocalhostOrigin) {
+      console.log('❌ Rejecting message from non-allowed origin:', { origin: event.origin, originHost });
       return;
     }
     

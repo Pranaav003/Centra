@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Centra",
-  "version": "1.34.53",
+  "version": "1.34.54",
   "description": "Finally, comprehensive website blocking built for procrastination.",
   "permissions": [
     "declarativeNetRequest",
@@ -27,17 +27,23 @@
         "https://centra.pranaaviyer.com/*",
         "http://localhost:3000/*"
       ],
-      "js": ["content-script-new.js"],
+      "js": [
+        "content-script-new.js"
+      ],
       "run_at": "document_end"
     },
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "<all_urls>"
+      ],
       "exclude_matches": [
         "https://checkout.stripe.com/*",
         "https://*.stripe.com/*",
         "https://*.stripe.network/*"
       ],
-      "js": ["content-script-new.js"],
+      "js": [
+        "content-script-new.js"
+      ],
       "run_at": "document_start"
     }
   ],
