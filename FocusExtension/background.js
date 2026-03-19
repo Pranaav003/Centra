@@ -119,8 +119,9 @@ function updateBlockingRules() {
     let nextRuleId = 1000; // Start with a higher base ID to avoid conflicts
     console.log('🔢 Starting rule ID generation from:', nextRuleId);
     
+    const PROD_REDIRECT_URL = "https://centra.pranaaviyer.com/redirect";
     // Determine redirect URL - use smart redirect if available, otherwise default to production redirect page
-    let redirectUrl = smartRedirectUrl || "https://centra.pranaaviyer.com/redirect";
+    let redirectUrl = smartRedirectUrl || PROD_REDIRECT_URL;
     
     // Ensure the redirect URL is properly formatted for Chrome's declarativeNetRequest
     if (smartRedirectUrl && smartRedirectUrl.trim()) {
@@ -130,6 +131,14 @@ function updateBlockingRules() {
       } else {
         redirectUrl = smartRedirectUrl;
       }
+    }
+
+    // Never allow localhost redirects in production extension builds
+    if (redirectUrl.includes('localhost') || redirectUrl.includes('127.0.0.1')) {
+      console.warn('⚠️ Replacing localhost redirect URL with production URL:', redirectUrl);
+      redirectUrl = PROD_REDIRECT_URL;
+      // Persist corrected value so it survives browser restarts.
+      chrome.storage.local.set({ smartRedirectUrl: PROD_REDIRECT_URL });
     }
     
     console.log('🎯 Smart redirect URL from storage:', smartRedirectUrl);
@@ -572,12 +581,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     
     if (request.action === 'setSmartRedirectUrl') {
-      chrome.storage.local.set({ smartRedirectUrl: request.url }, () => {
+      let normalizedRedirect = request.url;
+      if (!normalizedRedirect || normalizedRedirect.includes('localhost') || normalizedRedirect.includes('127.0.0.1')) {
+        normalizedRedirect = 'https://centra.pranaaviyer.com/redirect';
+      }
+      chrome.storage.local.set({ smartRedirectUrl: normalizedRedirect }, () => {
         if (chrome.runtime.lastError) {
           console.error('Error setting smart redirect URL:', chrome.runtime.lastError.message || chrome.runtime.lastError);
           sendResponse({ error: 'Failed to set smart redirect URL' });
         } else {
-          console.log('✅ Smart redirect URL set:', request.url);
+          console.log('✅ Smart redirect URL set:', normalizedRedirect);
           // Force update blocking rules to use the new redirect URL
           console.log('🔄 Forcing rule update with new smart redirect URL...');
           updateBlockingRules();
