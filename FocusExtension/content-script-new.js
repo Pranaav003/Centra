@@ -111,41 +111,61 @@ if (isFocusWebApp) {
     if (event.data.type === 'FOCUS_EXTENSION_MESSAGE') {
       console.log('✅ Valid message from web app received:', event.data);
       console.log('🔄 Forwarding to background script:', event.data.payload);
-      
-      chrome.runtime.sendMessage(event.data.payload, (response) => {
-        console.log('✅ Background script response received:', response);
-        
-        if (chrome.runtime.lastError) {
-          const runtimeMsg = (chrome.runtime.lastError.message || '').toLowerCase();
-          const isExpectedTransient =
-            runtimeMsg.includes('extension context invalidated') ||
-            runtimeMsg.includes('receiving end does not exist');
-          if (isExpectedTransient) {
-            console.warn('ℹ️ Extension transient state:', chrome.runtime.lastError.message);
-          } else {
-            console.error('❌ Chrome runtime error:', chrome.runtime.lastError);
-          }
-          // Send error response back to web app
-          window.postMessage({
-            type: 'FOCUS_EXTENSION_RESPONSE',
-            id: event.data.id,
-            response: { error: chrome.runtime.lastError.message || 'Chrome runtime error' }
-          }, event.origin);
-          return;
-        }
-        
-        console.log('📤 Sending response back to web app:', {
-          type: 'FOCUS_EXTENSION_RESPONSE',
-          id: event.data.id,
-          response: response
-        });
-        
+      // Context can be invalidated during extension reload/update. Guard for that so
+      // this bridge doesn't crash and leave the web app disconnected.
+      if (!chrome?.runtime?.id) {
         window.postMessage({
           type: 'FOCUS_EXTENSION_RESPONSE',
           id: event.data.id,
-          response: response
+          response: { error: 'Extension context invalidated' }
         }, event.origin);
-      });
+        return;
+      }
+
+      try {
+        chrome.runtime.sendMessage(event.data.payload, (response) => {
+          console.log('✅ Background script response received:', response);
+          
+          if (chrome.runtime.lastError) {
+            const runtimeMsg = (chrome.runtime.lastError.message || '').toLowerCase();
+            const isExpectedTransient =
+              runtimeMsg.includes('extension context invalidated') ||
+              runtimeMsg.includes('receiving end does not exist');
+            if (isExpectedTransient) {
+              console.warn('ℹ️ Extension transient state:', chrome.runtime.lastError.message);
+            } else {
+              console.error('❌ Chrome runtime error:', chrome.runtime.lastError);
+            }
+            // Send error response back to web app
+            window.postMessage({
+              type: 'FOCUS_EXTENSION_RESPONSE',
+              id: event.data.id,
+              response: { error: chrome.runtime.lastError.message || 'Chrome runtime error' }
+            }, event.origin);
+            return;
+          }
+          
+          console.log('📤 Sending response back to web app:', {
+            type: 'FOCUS_EXTENSION_RESPONSE',
+            id: event.data.id,
+            response: response
+          });
+          
+          window.postMessage({
+            type: 'FOCUS_EXTENSION_RESPONSE',
+            id: event.data.id,
+            response: response
+          }, event.origin);
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn('ℹ️ sendMessage threw (likely transient extension reload):', msg);
+        window.postMessage({
+          type: 'FOCUS_EXTENSION_RESPONSE',
+          id: event.data.id,
+          response: { error: msg || 'Extension context invalidated' }
+        }, event.origin);
+      }
     } else if (event.data?.type === 'FOCUS_EXTENSION_RESPONSE' || 
                event.data?.type === 'EXTENSION_STORAGE_CHANGED' || 
                event.data?.type === 'BLOCKED_SITE_VISITED') {
