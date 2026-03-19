@@ -24,6 +24,7 @@
         "http://localhost:5173/*",
         "https://centra-web-blocker.com/*",
         "https://centra-app.onrender.com/*",
+        "https://centra.pranaaviyer.com/*",
         "http://localhost:3000/*"
       ],
       "js": ["content-script-new.js"],

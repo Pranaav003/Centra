@@ -343,6 +343,7 @@ function notifyWebAppAboutStorageChange(changes) {
           tab.url.includes('focus-web-blocker.com') ||
           tab.url.includes('centra-web-blocker.com') ||
           tab.url.includes('centra-app.onrender.com') ||
+        tab.url.includes('centra.pranaaviyer.com') ||
           tab.url.includes('127.0.0.1')
         )) {
           try {
@@ -476,6 +477,7 @@ function notifyWebAppAboutBlockedSiteVisit(url) {
         tab.url.includes('focus-web-blocker.com') ||
         tab.url.includes('centra-web-blocker.com') ||
         tab.url.includes('centra-app.onrender.com') ||
+        tab.url.includes('centra.pranaaviyer.com') ||
         tab.url.includes('127.0.0.1')
       )) {
         try {

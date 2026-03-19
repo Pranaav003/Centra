@@ -6,7 +6,8 @@
 
   // Check if we're on the Centra web app
   const isFocusWebApp = window.location.hostname.includes('localhost') || 
-                       window.location.hostname.includes('centra-web-blocker.com');
+                       window.location.hostname.includes('centra-web-blocker.com') ||
+                       window.location.hostname.includes('centra.pranaaviyer.com');
 
 if (isFocusWebApp) {
   // Create the communication bridge directly in the content script
@@ -90,6 +91,7 @@ if (isFocusWebApp) {
     if (event.origin !== 'https://focus-web-blocker.com' &&
         event.origin !== 'https://centra-web-blocker.com' &&
         event.origin !== 'https://centra-app.onrender.com' &&
+        event.origin !== 'https://centra.pranaaviyer.com' &&
         !event.origin.includes('localhost')) {
       console.log('❌ Rejecting message from non-localhost origin:', event.origin);
       return;

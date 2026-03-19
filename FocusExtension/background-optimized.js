@@ -233,7 +233,8 @@ function notifyWebAppAboutBlockedSiteVisit(url) {
       tabs.forEach(tab => {
         if (tab.url && (
           tab.url.includes('localhost:3001') || 
-          tab.url.includes('centra-web-blocker.com')
+          tab.url.includes('centra-web-blocker.com') ||
+          tab.url.includes('centra.pranaaviyer.com')
         )) {
           chrome.tabs.sendMessage(tab.id, message).catch(() => {
             // Ignore errors for tabs that don't have content script
@@ -259,7 +260,8 @@ function notifyWebAppAboutStorageChange(changes) {
       tabs.forEach(tab => {
         if (tab.url && (
           tab.url.includes('localhost:3001') || 
-          tab.url.includes('centra-web-blocker.com')
+          tab.url.includes('centra-web-blocker.com') ||
+          tab.url.includes('centra.pranaaviyer.com')
         )) {
           chrome.tabs.sendMessage(tab.id, message).catch(() => {
             // Ignore errors for tabs that don't have content script
