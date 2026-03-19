@@ -1578,6 +1578,13 @@ export const Dashboard: React.FC = () => {
         showToast('Invalid website URL', 'error');
         return;
       }
+
+      // Prevent blocking the Centra web app itself (would break the UI)
+      const SELF_DOMAIN = 'centra.pranaaviyer.com';
+      if (normalizedSite === SELF_DOMAIN) {
+        showToast('You cannot block your own Centra website.', 'error');
+        return;
+      }
       
       if (!blockedSites.includes(normalizedSite)) {
         // Check site limit (5 for free users, unlimited for upgraded users)

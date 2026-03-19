@@ -51,6 +51,9 @@ router.post('/', auth, async (req, res, next) => {
       });
     }
 
+    // Prevent users from blocking the Centra web app itself
+    const SELF_DOMAIN = 'centra.pranaaviyer.com';
+
     // Normalize domain
     const normalizedDomain = domain.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
 
@@ -59,6 +62,13 @@ router.post('/', auth, async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Invalid domain format'
+      });
+    }
+
+    if (normalizedDomain === SELF_DOMAIN) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot block your own Centra website.'
       });
     }
 
@@ -134,6 +144,7 @@ router.post('/bulk', auth, async (req, res, next) => {
 
     const DOMAIN_MAX_LEN = 253;
     const DOMAIN_REGEX = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i;
+    const SELF_DOMAIN = 'centra.pranaaviyer.com';
 
     const results = [];
     const errors = [];
@@ -143,6 +154,11 @@ router.post('/bulk', auth, async (req, res, next) => {
         const normalizedDomain = domain.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
         if (normalizedDomain.length > DOMAIN_MAX_LEN || !DOMAIN_REGEX.test(normalizedDomain)) {
           errors.push({ domain: String(domain).slice(0, 50), error: 'Invalid domain format' });
+          continue;
+        }
+
+        if (normalizedDomain === SELF_DOMAIN) {
+          errors.push({ domain: String(domain).slice(0, 50), error: 'You cannot block your own Centra website.' });
           continue;
         }
 
