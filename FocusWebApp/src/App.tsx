@@ -14,6 +14,7 @@ import SessionsHistory from './components/SessionsHistory';
 import TestSessions from './components/TestSessions';
 import RedirectPage from './components/RedirectPage';
 import BreakPage from './components/BreakPage';
+import PrivacyPolicyPage from './components/PrivacyPolicyPage';
 import { SEO } from './components/SEO';
 
 // Protected Route Component
@@ -74,6 +75,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route 
             path="/dashboard" 

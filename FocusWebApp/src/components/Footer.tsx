@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import { Instagram } from 'lucide-react'
 
 const INSTAGRAM_URL = 'https://www.instagram.com/life.of.pranaav/'
@@ -28,6 +29,12 @@ const Footer: React.FC = () => {
           <p className="text-gray-500 text-sm">
             Made by Pranaav
           </p>
+          <Link
+            to="/privacy"
+            className="text-gray-400 hover:text-white text-sm transition-colors duration-200 underline-offset-2 hover:underline"
+          >
+            Privacy Policy
+          </Link>
           <p className="text-gray-500 text-xs">
             © {new Date().getFullYear()} Centra. A focus & productivity tool.
           </p>

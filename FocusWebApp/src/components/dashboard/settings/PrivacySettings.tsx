@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Shield, Lock, Eye, EyeOff, Key, Database } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Shield, Lock, Eye, EyeOff, Key, Database, FileText } from 'lucide-react';
 
 interface PrivacySettingsProps {
   syncPasswordSettingsToExtension?: (passwordEnabled: boolean, password: string) => void;
@@ -114,6 +115,26 @@ export const PrivacySettings: React.FC<PrivacySettingsProps> = ({
           <h2 className="text-xl font-bold text-white">Privacy & Security</h2>
           <p className="text-gray-400 text-sm">Manage your privacy settings and security preferences</p>
         </div>
+      </div>
+
+      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center shrink-0">
+            <FileText className="w-5 h-5 text-blue-400" />
+          </div>
+          <div>
+            <h3 className="text-white font-semibold">Privacy Policy</h3>
+            <p className="text-gray-400 text-sm">
+              Read how Centra collects, uses, and protects your data.
+            </p>
+          </div>
+        </div>
+        <Link
+          to="/privacy"
+          className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors whitespace-nowrap"
+        >
+          View full policy
+        </Link>
       </div>
 
       {/* Password Protection Section */}
