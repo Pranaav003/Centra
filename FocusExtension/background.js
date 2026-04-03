@@ -1,22 +1,37 @@
-// Initialize storage on install
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({ 
-    blockingEnabled: false, 
-    blockedSites: [], 
-    smartRedirectUrl: '', 
-    isUpgraded: false,
-    passwordEnabled: false,
-    blockingPassword: ''
-  });
+// Only reset storage on true first-time install. Chrome also fires onInstalled for
+// extension updates and Chrome browser updates — wiping storage there breaks blocking
+// for Web Store users while unpacked dev reloads often mask the bug.
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install') {
+    chrome.storage.local.set(
+      {
+        blockingEnabled: false,
+        blockedSites: [],
+        smartRedirectUrl: '',
+        isUpgraded: false,
+        passwordEnabled: false,
+        blockingPassword: ''
+      },
+      () => updateBlockingRules()
+    );
+  } else {
+    console.log('Centra onInstalled:', details.reason, '— re-applying DNR rules (keeping storage)');
+    updateBlockingRules();
+  }
 });
 
-// Listen for when redirect rules are matched (when user tries to visit blocked sites)
-chrome.declarativeNetRequest.onRuleMatchedDebug.addListener((details) => {
-  console.log('🚫 Redirect rule matched:', details);
-  
-  // Notify the web app that a blocked site was visited
-  notifyWebAppAboutBlockedSiteVisit(details.request.url);
-});
+// Debug rule matches: only reliably available for unpacked extensions; guard so the
+// service worker always finishes loading in Web Store builds.
+try {
+  if (chrome.declarativeNetRequest.onRuleMatchedDebug) {
+    chrome.declarativeNetRequest.onRuleMatchedDebug.addListener((details) => {
+      console.log('🚫 Redirect rule matched:', details);
+      notifyWebAppAboutBlockedSiteVisit(details.request.url);
+    });
+  }
+} catch (e) {
+  console.warn('Centra: onRuleMatchedDebug unavailable (ok for store builds)', e);
+}
 
 // Listen for storage changes to update blocking rules and notify web app
 chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -79,9 +94,19 @@ function checkAndReloadCurrentTab(blockedSites) {
   });
 }
 
-// Function to update blocking rules
+// Debounce so startup timer + storage.onChanged cannot run two DNR updates in parallel
+// (parallel updates can reuse the same rule ID base and fail with "not unique").
+let blockingRulesDebounceTimer = null;
 function updateBlockingRules() {
-  console.log('🔄 updateBlockingRules called');
+  if (blockingRulesDebounceTimer) clearTimeout(blockingRulesDebounceTimer);
+  blockingRulesDebounceTimer = setTimeout(() => {
+    blockingRulesDebounceTimer = null;
+    flushBlockingRules();
+  }, 150);
+}
+
+function flushBlockingRules() {
+  console.log('🔄 flushBlockingRules called');
   
   chrome.storage.local.get(['blockingEnabled', 'blockedSites', 'smartRedirectUrl'], (data) => {
     const enabled = data.blockingEnabled || false;
@@ -118,7 +143,9 @@ function updateBlockingRules() {
     const rules = [];
     // Use a high, time-based base to avoid collisions with any pre-existing/static rule IDs.
     // (Chrome requires rule IDs to be globally unique across active rules.)
-    let nextRuleId = 100000 + (Date.now() % 1000000);
+    // Spread IDs across time + entropy so back-to-back flushes never collide.
+    let nextRuleId =
+      100000 + (Date.now() % 100000) * 10000 + Math.floor(Math.random() * 9000);
     console.log('🔢 Starting rule ID generation from:', nextRuleId);
     
     const PROD_REDIRECT_URL = "https://centra.pranaaviyer.com/redirect";
