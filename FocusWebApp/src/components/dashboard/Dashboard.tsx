@@ -31,6 +31,7 @@ import { getTodaysTip } from '../../data/focusTips';
 import { AnalyticsPage } from './AnalyticsPage';
 import { SEO } from '../SEO';
 import { API_BASE_URL, FRONTEND_URL } from '../../config/api';
+import { CHROME_WEB_STORE_URL } from '../../constants/chromeWebStore';
 
 interface FocusSession {
   _id: string;
@@ -2401,6 +2402,14 @@ export const Dashboard: React.FC = () => {
                         <div className="min-w-0">
                           <h3 className="text-xl font-bold text-white truncate">Website Blocker: {blockedSites.length}/5</h3>
                           <p className="text-gray-400 text-sm sm:text-base break-words">Use the Centra addon to block distracting websites and maintain focus during work sessions</p>
+                          <a
+                            href={CHROME_WEB_STORE_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block mt-2 text-sm font-medium text-primary hover:underline"
+                          >
+                            Get Centra on the Chrome Web Store
+                          </a>
                         </div>
                       </div>
                       

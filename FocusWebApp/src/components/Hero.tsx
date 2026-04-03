@@ -2,6 +2,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { Shield, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CHROME_WEB_STORE_URL } from '@/constants/chromeWebStore'
 
 const Hero: React.FC = () => {
   return (
@@ -126,10 +127,12 @@ const Hero: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.6 }}
         >
-          <Button size="lg" className="text-lg px-8 py-6 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-2xl hover:shadow-primary/25 transition-all duration-300 animate-gradient-bg bg-[length:200%_200%]">
-            <Shield className="w-5 h-5 mr-2" />
-            Add to Browser
-            <ArrowRight className="w-5 h-5 ml-2" />
+          <Button size="lg" className="text-lg px-8 py-6 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-2xl hover:shadow-primary/25 transition-all duration-300 animate-gradient-bg bg-[length:200%_200%]" asChild>
+            <a href={CHROME_WEB_STORE_URL} target="_blank" rel="noopener noreferrer">
+              <Shield className="w-5 h-5 mr-2" />
+              Add to Browser
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </a>
           </Button>
         </motion.div>
       </div>

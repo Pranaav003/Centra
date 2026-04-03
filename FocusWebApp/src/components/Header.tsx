@@ -4,6 +4,7 @@ import { Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import { CHROME_WEB_STORE_URL } from '@/constants/chromeWebStore';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
@@ -43,7 +44,12 @@ const Header: React.FC = () => {
             <a href="#testimonials" className="text-gray-200 hover:text-white transition-all duration-200 font-medium text-sm tracking-wide hover:scale-105">
               Reviews
             </a>
-            <a href="#cta" className="text-gray-200 hover:text-white transition-all duration-200 font-medium text-sm tracking-wide hover:scale-105">
+            <a
+              href={CHROME_WEB_STORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-200 hover:text-white transition-all duration-200 font-medium text-sm tracking-wide hover:scale-105"
+            >
               Download
             </a>
           </motion.nav>

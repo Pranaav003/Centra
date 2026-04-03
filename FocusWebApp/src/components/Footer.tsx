@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { Instagram } from 'lucide-react'
+import { CHROME_WEB_STORE_URL } from '@/constants/chromeWebStore'
 
 const INSTAGRAM_URL = 'https://www.instagram.com/life.of.pranaav/'
 
@@ -29,12 +30,22 @@ const Footer: React.FC = () => {
           <p className="text-gray-500 text-sm">
             Made by Pranaav
           </p>
-          <Link
-            to="/privacy"
-            className="text-gray-400 hover:text-white text-sm transition-colors duration-200 underline-offset-2 hover:underline"
-          >
-            Privacy Policy
-          </Link>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
+            <a
+              href={CHROME_WEB_STORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-400 hover:text-white transition-colors duration-200 underline-offset-2 hover:underline"
+            >
+              Chrome Web Store
+            </a>
+            <Link
+              to="/privacy"
+              className="text-gray-400 hover:text-white transition-colors duration-200 underline-offset-2 hover:underline"
+            >
+              Privacy Policy
+            </Link>
+          </div>
           <p className="text-gray-500 text-xs">
             © {new Date().getFullYear()} Centra. A focus & productivity tool.
           </p>

@@ -4,6 +4,7 @@ import Header from './Header';
 import Footer from './Footer';
 import { SEO } from './SEO';
 import { ArrowLeft } from 'lucide-react';
+import { CHROME_WEB_STORE_URL } from '@/constants/chromeWebStore';
 
 /** Keep in sync with legal / store listings */
 const EFFECTIVE_DATE = 'January 26, 2026';
@@ -37,7 +38,16 @@ const PrivacyPolicyPage: React.FC = () => {
 
             <p className="text-gray-300 leading-relaxed mb-8">
               Centra is a productivity-focused Chrome extension designed to help users block
-              distracting websites.
+              distracting websites.{' '}
+              <a
+                href={CHROME_WEB_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary font-medium hover:underline"
+              >
+                Install Centra from the Chrome Web Store
+              </a>
+              .
             </p>
 
             <section className="mb-10">
